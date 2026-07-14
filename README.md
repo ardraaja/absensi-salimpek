@@ -57,3 +57,43 @@ If you discover a security vulnerability within Laravel, please send an e-mail t
 ## License
 
 The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+
+
+
+Langkah 1: Instal & Login Devtunnel di Laptop Temanmu
+Minta temanmu untuk membuka PowerShell di laptopnya, lalu instal CLI devtunnel:
+
+PowerShell
+winget install Microsoft.DevTunnel
+Setelah selesai, minta dia menutup dan membuka kembali VS Code-nya. Lalu jalankan perintah login di terminal VS Code:
+
+Bash
+devtunnel user login
+(Minta dia login pakai akun GitHub atau Microsoft masing-masing).
+
+Langkah 2: Membuat URL Permanen di Laptop Temanmu
+Biar temanmu juga punya URL statis yang tidak berubah-ubah setiap hari, minta dia mengetikkan perintah ini di terminal secara berurutan:
+
+Bash
+devtunnel create tunnel-teman --allow-anonymous
+devtunnel port create tunnel-teman -p 8080
+Langkah 3: Menghubungkan ke .env Lokal Temanmu
+Setelah perintah di atas sukses, jalankan terowongannya dengan mengetik:
+
+Bash
+devtunnel host tunnel-teman
+Minta temanmu menyalin Connect URL yang muncul (yang berakhiran -8080.asse.devtunnels.ms).
+
+Buka file .env di laptop temanmu, lalu tempel ke bagian APP_URL:
+
+Cuplikan kode
+APP_URL=https://url-milik-teman-8080.asse.devtunnels.ms
+Langkah Khusus: Membuka Aplikasi Bersama
+Sekarang, setiap kali temanmu mau running dan tes di HP, dia tinggal membuka 2 terminal berbeda di laptopnya:
+
+Terminal 1: php artisan serve --port=8080
+
+Terminal 2: devtunnel host tunnel-teman
+
+Catatan Penting:
+Karena file .env di-ignore oleh Git, konfigurasi APP_URL ini akan tersimpan aman di lokal laptop masing-masing. Kamu punya URL devtunnel sendiri, dan temanmu punya URL devtunnel sendiri. Kalian tidak akan saling tabrakan atau berebut tunnel saat coding bareng!
