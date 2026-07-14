@@ -20,39 +20,50 @@ class PegawaiController extends Controller
         $tahun = explode('-', $bulanDipilih)[0];
         $bulan = explode('-', $bulanDipilih)[1];
 
-        // 2. Tentukan batas awal dan akhir bulan yang dipilih secara objektif
-        $awalBulan = Carbon::createFromDate($tahun, $bulan, 1)->startOfMonth();
-        $akhirBulan = Carbon::createFromDate($tahun, $bulan, 1)->endOfMonth();
+        // Buat objek Carbon dari bulan yang dipilih
+        $awalBulan = \Carbon\Carbon::createFromDate($tahun, $bulan, 1, 0, 0, 0, 'Asia/Jakarta')->startOfMonth();
+        $akhirBulan = \Carbon\Carbon::createFromDate($tahun, $bulan, 1, 0, 0, 0, 'Asia/Jakarta')->endOfMonth();
         
-        $tanggalDibuat = Carbon::parse($user->created_at)->startOfDay();
-        $hariIni = Carbon::today();
+        $tanggalDibuat = \Carbon\Carbon::parse($user->created_at)->setTimezone('Asia/Jakarta')->startOfDay();
+        $sekarang = \Carbon\Carbon::now('Asia/Jakarta');
+        $hariIni = \Carbon\Carbon::today('Asia/Jakarta');
 
-        // Tentukan batas awal hitung untuk bulan tersebut
-        // Jika sedang melihat bulan berjalan dan akun baru dibuat bulan ini, hitung sejak akun dibuat
-        if ($tanggalDibuat->format('Y-m') === $bulanDipilih) {
-            $tanggalMulaiHitung = $tanggalDibuat->copy();
-        } else {
-            $tanggalMulaiHitung = $awalBulan->copy();
-        }
-
-        // Tentukan batas akhir hitung untuk bulan tersebut
-        if ($hariIni->format('Y-m') === $bulanDipilih) {
-            // Jika bulan sekarang, batasnya hanya sampai HARI INI
-            $tanggalAkhirHitung = $hariIni->copy();
-        } else {
-            // Jika bulan lalu, batasnya sampai akhir bulan tersebut
-            $tanggalAkhirHitung = $akhirBulan->copy();
-        }
-
-        // 3. Jalankan Loop Hitung Hari Kerja (Hanya jika rentang tanggalnya valid/masuk akal)
         $totalHariKerja = 0;
-        if ($tanggalMulaiHitung->lte($tanggalAkhirHitung) && $tanggalDibuat->startOfMonth()->lte($akhirBulan)) {
-            $tempTanggal = $tanggalMulaiHitung->copy();
-            while ($tempTanggal->lte($tanggalAkhirHitung)) {
-                if ($tempTanggal->isWeekday()) {
-                    $totalHariKerja++;
+
+        // ATURAN 1: Pengecekan apakah pegawai sudah terdaftar/aktif di bulan yang dipilih
+        // Jika bulan yang dipilih terjadi SEBELUM akun dibuat, atau SEBELUM bulan berjalan (Masa Depan)
+        if ($awalBulan->format('Y-m') < $tanggalDibuat->format('Y-m') || $awalBulan->format('Y-m') > $sekarang->format('Y-m')) {
+            // Hari kerja langsung 0, tidak perlu jalankan loop
+            $totalHariKerja = 0;
+        } else {
+            // Tentukan batas awal hitung loop
+            if ($tanggalDibuat->format('Y-m') === $bulanDipilih) {
+                $tanggalMulaiHitung = $tanggalDibuat->copy();
+            } else {
+                $tanggalMulaiHitung = $awalBulan->copy();
+            }
+
+            // Tentukan batas akhir hitung loop
+            if ($hariIni->format('Y-m') === $bulanDipilih) {
+                // ATURAN 2: Jika jam sekarang sebelum 07:30 WIB, hari ini belum dihitung sebagai hari kerja
+                if ($sekarang->format('H:i') < '07:30') {
+                    $tanggalAkhirHitung = $hariIni->copy()->subDay(); // Cuma hitung sampai kemarin
+                } else {
+                    $tanggalAkhirHitung = $hariIni->copy(); // Sudah masuk jam kerja, hitung sampai hari ini
                 }
-                $tempTanggal->addDay();
+            } else {
+                $tanggalAkhirHitung = $akhirBulan->copy();
+            }
+
+            // Jalankan Loop Perhitungan Hari Kerja (Senin - Jumat)
+            if ($tanggalMulaiHitung->lte($tanggalAkhirHitung)) {
+                $tempTanggal = $tanggalMulaiHitung->copy();
+                while ($tempTanggal->lte($tanggalAkhirHitung)) {
+                    if ($tempTanggal->isWeekday()) {
+                        $totalHariKerja++;
+                    }
+                    $tempTanggal->addDay();
+                }
             }
         }
 
@@ -64,26 +75,31 @@ class PegawaiController extends Controller
             ->orderBy('tanggal', 'desc')
             ->get();
 
-        // 5. Hitung statistik riil (Tepat Waktu & Hadir digabung jadi satu badge)
+        // 5. Hitung statistik riil
         $totalHadir = $riwayatAbsen->whereIn('status', ['Tepat Waktu', 'Hadir'])->count();
         $totalTerlambat = $riwayatAbsen->where('status', 'Terlambat')->count();
         
-        // Alpa = Total hari kerja dilalui dikurangi jumlah data absen yang terisi
         $totalPresensiIsi = $riwayatAbsen->count();
         $tanpaKeterangan = $totalHariKerja - $totalPresensiIsi;
         if ($tanpaKeterangan < 0) $tanpaKeterangan = 0;
 
-        // 6. Cek Absen Hari Ini
+        // 6. Pencarian data absensi hari ini (WIB)
         $absenHariIni = DB::table('absensi')
             ->where('user_id', $user->id)
-            ->whereDate('tanggal', Carbon::today())
+            ->whereDate('tanggal', $hariIni->format('Y-m-d'))
             ->first();
 
         if ($absenHariIni) {
             $statusHariIni = 'Sudah Absen (' . $absenHariIni->status . ' - ' . date('H:i', strtotime($absenHariIni->jam_masuk)) . ')';
         } else {
-            $statusHariIni = 'Belum Absen';
+            if ($sekarang->format('H:i') < '07:30' || $sekarang->format('H:i') > '17:00') {
+                $statusHariIni = 'Sekarang di Luar Jam Kerja';
+            } else {
+                $statusHariIni = 'Belum Absen';
+            }
         }
+
+        $isJamKerja = ($sekarang->format('H:i') >= '07:30' && $sekarang->format('H:i') <= '17:00');
 
         return view('pegawai.dashboard', compact(
             'riwayatAbsen', 
@@ -93,7 +109,8 @@ class PegawaiController extends Controller
             'tanpaKeterangan',
             'bulanDipilih',
             'statusHariIni',
-            'absenHariIni'
+            'absenHariIni',
+            'isJamKerja'
         ));
     }
 

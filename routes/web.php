@@ -17,6 +17,9 @@ Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
 // Rute khusus Admin (Sudah disatukan ke dalam grup middleware)
 Route::middleware(['auth', 'admin'])->prefix('admin')->group(function () {
     Route::get('/dashboard', [AdminController::class, 'index'])->name('admin.dashboard');
+    Route::post('/pegawai/store', [AdminController::class, 'store'])->name('admin.pegawai.store');
+    Route::post('/pegawai/{id}/update', [AdminController::class, 'update'])->name('admin.pegawai.update');
+    Route::delete('/pegawai/{id}/delete', [AdminController::class, 'destroy'])->name('admin.pegawai.destroy');
 });
 
 // Rute khusus Pegawai

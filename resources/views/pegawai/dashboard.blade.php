@@ -224,7 +224,7 @@
         <div class="col-md-4 text-center desktop-absen-card">
             <div class="card border-0 shadow-sm p-4 d-flex flex-column align-items-center justify-content-center h-100">
                 <h5 class="fw-semibold mb-3">Ambil Absensi Hari Ini</h5>
-                <button type="button" class="btn {{ $absenHariIni ? 'btn-secondary' : 'btn-success' }} btn-lg rounded-circle shadow my-2 btn-absen-trigger" {{ $absenHariIni ? 'disabled' : '' }}>
+                <button type="button" class="btn {{ ($absenHariIni || !$isJamKerja) ? 'btn-secondary' : 'btn-success' }} btn-lg rounded-circle shadow my-2 btn-absen-trigger" style="width: 130px; height: 130px;" {{ ($absenHariIni || !$isJamKerja) ? 'disabled' : '' }}>
                     <span class="fw-bold">HADIR</span>
                 </button>
             </div>
@@ -259,7 +259,7 @@
                     </div>
                     <div class="col-4">
                         <div class="badge-num">{{ $tanpaKeterangan }}</div>
-                        <span class="label-status">Alpa</span>
+                        <span class="label-status">Tanpa Keterangan</span>
                     </div>
                 </div>
             </div>
@@ -388,7 +388,7 @@
     </div>
     
     <div class="center-absen-wrapper">
-        <button type="button" class="btn {{ $absenHariIni ? 'btn-secondary' : 'btn-success' }} btn-hadir-mobile btn-absen-trigger" {{ $absenHariIni ? 'disabled' : '' }}>
+        <button type="button" class="btn {{ ($absenHariIni || !$isJamKerja) ? 'btn-secondary' : 'btn-success' }} btn-hadir-mobile btn-absen-trigger" {{ ($absenHariIni || !$isJamKerja) ? 'disabled' : '' }}>
             HADIR
         </button>
     </div>

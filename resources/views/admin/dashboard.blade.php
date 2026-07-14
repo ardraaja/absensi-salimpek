@@ -52,6 +52,7 @@
 
         /* Gaya Hotbar Bawah */
         .nav-bottom { position: fixed; bottom: 0; left: 0; right: 0; height: 65px; background: white; box-shadow: 0 -2px 15px rgba(0,0,0,0.1); z-index: 1000; }
+        .nav-bottom { position: fixed; bottom: 0; left: 0; right: 0; height: 65px; background: white; box-shadow: 0 -2px 15px rgba(0,0,0,0.1); z-index: 1000; }
         .nav-item-box { flex: 1; text-align: center; color: #6c757d; cursor: pointer; padding: 10px 0; }
         .nav-item-box.active { color: #198754; font-weight: bold; }
 
@@ -144,7 +145,7 @@
                 </div>
                 <div>
                     <h5 class="fw-bold mb-0" style="font-size: 16px;">Rekap Presensi Hari Ini</h5>
-                    <span class="small opacity-75">{{ \Carbon\Carbon::now()->translatedFormat('l, d F Y') }}</span>
+                    <span class="small opacity-75">{{ \Carbon\Carbon::now('Asia/Jakarta')->translatedFormat('l, d F Y') }}</span>
                 </div>
             </div>
             <div class="pt-1">
@@ -163,7 +164,7 @@
             </div>
             <div class="col-4">
                 <div class="badge-num bg-danger">{{ $belumAbsen }}</div>
-                <span class="label-status">Belum Absen</span>
+                <span class="label-status">tanpa keterangan</span>
             </div>
         </div>
     </div>
@@ -189,7 +190,8 @@
                         <th>Kapan Terdaftar</th>
                         <th class="text-center text-success">Hadir</th>
                         <th class="text-center text-warning">Telat</th>
-                        <th class="text-center text-danger">Alpa</th>
+                        <th class="text-center text-danger">Tanpa Keterangan</th>
+                        <th class="text-center">Aksi</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -212,12 +214,18 @@
                             <td class="text-center fw-bold text-success">{{ $pegawai->count_hadir }}</td>
                             <td class="text-center fw-bold text-warning">{{ $pegawai->count_telat }}</td>
                             <td class="text-center fw-bold text-danger">{{ $pegawai->count_alpa }}</td>
+                            <td class="text-center">
+                                <!-- Tombol Detail Popup Data Log Jurnal Absensi -->
+                                <button type="button" class="btn btn-sm btn-outline-success px-2 py-1" style="font-size: 11px;" onclick="bukaModalDetail('{{ $pegawai->name }}', '{{ $pegawai->jabatan }}', '{{ $pegawai->nip }}', '{{ json_encode($pegawai->riwayat_json) }}')">
+                                    <i class="bi bi-eye-fill"></i> Detail
+                                </button>
+                            </td>
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="6" class="text-center text-muted py-4">Belum ada data akun pegawai terdaftar.</td>
+                            <td colspan="7" class="text-center text-muted py-4">Belum ada data akun pegawai terdaftar.</td>
                         </tr>
-                    @endforeach
+                    @endforelse
                 </tbody>
             </table>
         </div>
@@ -277,18 +285,57 @@
                         <i class="bi bi-chevron-right text-muted"></i>
                     </a>
 
-                    <!-- Tombol Keluar Aplikasi -->
                     <form action="{{ route('logout') }}" method="POST" class="w-100 mt-2">
                         @csrf
                         <button type="submit" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center py-3 border-0 rounded text-danger fw-bold bg-danger-subtle">
                             <div>
                                 <i class="bi bi-box-arrow-left me-3 fs-5"></i>
-                                <span>Keluar Aplikasi</span>
+                                <span>Keluar</span>
                             </div>
                             <i class="bi bi-chevron-right"></i>
                         </button>
                     </form>
                 </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ==========================================
+     POPUP MODAL: DETAIL LOG ABSENSI JURNAL PEGAWAI
+     ========================================== -->
+<div class="modal fade" id="modalDetailPegawai" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content border-0 shadow-lg">
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title fw-bold" id="detail-title-nama">Jurnal Absensi Staf</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-3">
+                <div class="bg-light p-3 rounded mb-3 border">
+                    <h6 class="fw-bold text-success mb-1" id="detail-info-nama">-</h6>
+                    <span class="text-muted small" id="detail-info-meta">Jabatan: - | NIP: -</span>
+                </div>
+                <h6 class="fw-bold text-muted small mb-2"><i class="bi bi-journal-text me-1"></i>Log Riwayat Kehadiran Bulanan</h6>
+                <div class="table-responsive">
+                    <table class="table table-bordered table-sm align-middle mb-0" style="font-size: 11px;">
+                        <thead class="table-light text-center">
+                            <tr>
+                                <th>Hari / Tanggal</th>
+                                <th>Jam Absen</th>
+                                <th>Status</th>
+                                <th>Latitude</th>
+                                <th>Longitude</th>
+                            </tr>
+                        </thead>
+                        <tbody id="detail-table-body">
+                            <!-- Diisi dinamis via JavaScript -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer bg-light py-2">
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Tutup Jurnal</button>
             </div>
         </div>
     </div>
@@ -302,7 +349,7 @@
         <div class="modal-content border-0 shadow">
             <div class="modal-header bg-success text-white">
                 <h5 class="modal-title fw-bold"><i class="bi bi-sliders me-2"></i>Kelola Akun Staf Pegawai</h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-submit="modal" data-bs-dismiss="modal" aria-label="Close"></button>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body p-3">
                 <!-- Tombol Tambah Pegawai Baru -->
@@ -313,32 +360,32 @@
                 <!-- Form Collapse Tambah Akun -->
                 <div class="collapse mb-3" id="collapseTambahPegawai">
                     <div class="card p-3 border border-success-subtle bg-light shadow-sm">
-                        <form action="#" method="POST">
+                        <form action="{{ route('admin.pegawai.store') }}" method="POST">
                             @csrf
                             <div class="row g-2">
                                 <div class="col-md-6 mb-2">
                                     <label class="form-label small fw-bold mb-1">Nama Lengkap</label>
-                                    <input type="text" class="form-control form-control-sm" required>
+                                    <input type="text" name="name" class="form-control form-control-sm" required>
                                 </div>
                                 <div class="col-md-6 mb-2">
                                     <label class="form-label small fw-bold mb-1">NIP</label>
-                                    <input type="text" class="form-control form-control-sm" placeholder="Isi '-' jika tidak ada">
+                                    <input type="text" name="nip" class="form-control form-control-sm" placeholder="Isi '-' jika tidak ada">
                                 </div>
                                 <div class="col-md-6 mb-2">
                                     <label class="form-label small fw-bold mb-1">Email (Akun)</label>
-                                    <input type="email" class="form-control form-control-sm" required>
+                                    <input type="email" name="email" class="form-control form-control-sm" required>
                                 </div>
                                 <div class="col-md-6 mb-2">
                                     <label class="form-label small fw-bold mb-1">Password</label>
-                                    <input type="password" class="form-control form-control-sm" required>
+                                    <input type="password" name="password" class="form-control form-control-sm" required>
                                 </div>
                                 <div class="col-md-6 mb-2">
                                     <label class="form-label small fw-bold mb-1">Jabatan</label>
-                                    <input type="text" class="form-control form-control-sm" placeholder="Contoh: Kaur Keuangan" required>
+                                    <input type="text" name="jabatan" class="form-control form-control-sm" placeholder="Contoh: Kaur Keuangan" required>
                                 </div>
                                 <div class="col-md-6 mb-2">
                                     <label class="form-label small fw-bold mb-1">Status Kerja</label>
-                                    <select class="form-select form-select-sm" required>
+                                    <select name="status_kerja" class="form-select form-select-sm" required>
                                         <option value="Aktif">Aktif</option>
                                         <option value="Kontrak">Kontrak</option>
                                         <option value="Magang">Magang</option>
@@ -353,23 +400,20 @@
                 <!-- List Daftar Manajemen Aksi -->
                 <h6 class="fw-bold text-muted mb-2 small mt-2">Daftar Akun Terdaftar</h6>
                 <div class="list-group gap-2">
-                    <!-- Item Contoh Pegawai -->
+                    @forelse($daftarPegawai as $p)
                     <div class="p-3 bg-light rounded border d-flex justify-content-between align-items-center">
                         <div>
-                            <strong class="text-dark">Budi Setiawan</strong>
-                            <div class="text-muted" style="font-size: 11px;">Staf Administrasi | budi@salimpek.go.id</div>
+                            <strong class="text-dark">{{ $p->name }}</strong>
+                            <div class="text-muted" style="font-size: 11px;">{{ $p->jabatan }} | {{ $p->email }}</div>
                         </div>
                         <div class="d-flex gap-1">
-                            <!-- Tombol Trigger Edit Form Modal Popup -->
-                            <button class="btn btn-outline-primary btn-sm px-2 py-1" style="font-size: 11px;" onclick="bukaModalEdit('1', 'Budi Setiawan', '13029388484920', 'Kaur Keuangan')">
-                                <i class="bi bi-pencil-square"></i>
-                            </button>
-                            <!-- Tombol Trigger Hapus Konfirmasi Popup -->
-                            <button class="btn btn-outline-danger btn-sm px-2 py-1" style="font-size: 11px;" onclick="konfirmasiHapus('1', 'Budi Setiawan')">
-                                <i class="bi bi-trash"></i>
-                            </button>
+                            <button class="btn btn-outline-primary btn-sm px-2 py-1" style="font-size: 11px;" onclick="bukaModalEdit('{{ $p->id }}', '{{ $p->name }}', '{{ $p->nip }}', '{{ $p->jabatan }}')"><i class="bi bi-pencil-square"></i></button>
+                            <button class="btn btn-outline-danger btn-sm px-2 py-1" style="font-size: 11px;" onclick="konfirmasiHapus('{{ $p->id }}', '{{ $p->name }}')"><i class="bi bi-trash"></i></button>
                         </div>
                     </div>
+                    @empty
+                    <div class="text-center p-3 text-muted small">Belum ada pegawai terdaftar.</div>
+                    @endforelse
                 </div>
             </div>
         </div>
@@ -391,19 +435,15 @@
                 <div class="modal-body">
                     <div class="mb-2">
                         <label class="form-label small fw-semibold">Nama Lengkap</label>
-                        <input type="text" id="edit-nama" class="form-control form-control-sm" required>
+                        <input type="text" id="edit-nama" name="name" class="form-control form-control-sm" required>
                     </div>
                     <div class="mb-2">
                         <label class="form-label small fw-semibold">NIP</label>
-                        <input type="text" id="edit-nip" class="form-control form-control-sm">
+                        <input type="text" id="edit-nip" name="nip" class="form-control form-control-sm">
                     </div>
                     <div class="mb-2">
                         <label class="form-label small fw-semibold">Jabatan</label>
-                        <input type="text" id="edit-jabatan" class="form-control form-control-sm" required>
-                    </div>
-                    <div class="mb-1">
-                        <label class="form-label small text-muted" style="font-size: 11px;">*Kosongkan password jika tidak ingin diganti</label>
-                        <input type="password" class="form-control form-control-sm" placeholder="Password Baru">
+                        <input type="text" id="edit-jabatan" name="jabatan" class="form-control form-control-sm" required>
                     </div>
                 </div>
                 <div class="modal-footer bg-light py-2">
@@ -458,10 +498,41 @@
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <script>
+    // Penanganan Buka Modal Detail Jurnal Absensi Pegawai Dinamis via JSON Parsing
+    function bukaModalDetail(nama, jabatan, nip, riwayatJson) {
+        document.getElementById('detail-title-nama').innerText = "Jurnal Absensi: " + nama;
+        document.getElementById('detail-info-nama').innerText = nama;
+        document.getElementById('detail-info-meta').innerText = "Jabatan: " + jabatan + " | NIP: " + (nip && nip !== 'null' ? nip : '-');
+        
+        const riwayat = JSON.parse(riwayatJson);
+        const tbody = document.getElementById('detail-table-body');
+        tbody.innerHTML = ''; // Reset baris lama
+
+        if(riwayat.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="5" class="text-center text-muted py-3">Tidak ada riwayat presensi di bulan ini.</td></tr>`;
+        } else {
+            riwayat.forEach(item => {
+                let badgeColor = (item.status === 'Tepat Waktu' || item.status === 'Hadir') ? 'bg-success' : 'bg-warning text-dark';
+                tbody.innerHTML += `
+                    <tr>
+                        <td><strong>${item.hari}</strong></td>
+                        <td class="text-center">${item.jam}</td>
+                        <td class="text-center"><span class="badge ${badgeColor}">${item.status}</span></td>
+                        <td class="text-center text-muted">${item.lat}</td>
+                        <td class="text-center text-muted">${item.lng}</td>
+                    </tr>
+                `;
+            });
+        }
+
+        var myModal = new bootstrap.Modal(document.getElementById('modalDetailPegawai'));
+        myModal.show();
+    }
+
     // Penanganan Buka Modal Popup Edit
     function bukaModalEdit(id, nama, nip, jabatan) {
         document.getElementById('edit-nama').value = nama;
-        document.getElementById('edit-nip').value = nip;
+        document.getElementById('edit-nip').value = (nip && nip !== 'null') ? nip : '';
         document.getElementById('edit-jabatan').value = jabatan;
         
         // Atur action form update secara dinamis
@@ -495,8 +566,8 @@
         const index = items.indexOf(element);
 
         if(index !== -1) {
-            document.querySelectorAll('.sidebar-item')[index].classList.add('active');
-            document.querySelectorAll('.nav-item-box')[index].classList.add('active');
+            if(document.querySelectorAll('.sidebar-item')[index]) document.querySelectorAll('.sidebar-item')[index].classList.add('active');
+            if(document.querySelectorAll('.nav-item-box')[index]) document.querySelectorAll('.nav-item-box')[index].classList.add('active');
         }
     }
 </script>
