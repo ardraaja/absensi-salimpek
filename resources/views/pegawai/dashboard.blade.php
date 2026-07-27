@@ -7,13 +7,9 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
     <style>
-        /* ==========================================
-           CSS MOBILE-FIRST (TAMPILAN HP)
-           ========================================== */
         body { padding-bottom: 80px; padding-top: 0; }
         .sidebar-left { display: none !important; } 
         
-        /* Efek Gradasi Hijau Pudar Lengkung Atas */
         .header-gradient-mobile {
             background: linear-gradient(180deg, #198754 0%, #1eac6d 60%, #f8f9fa 100%);
             border-bottom-left-radius: 30px;
@@ -27,7 +23,6 @@
             color: white !important;
         }
         
-        /* Kontainer Status Putih Solid Bersih Tanpa Transparan di HP */
         .header-gradient-mobile .alert-secondary {
             background: #ffffff !important;
             border: none !important;
@@ -35,13 +30,9 @@
             box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05) !important;
         }
 
-        /* Warna teks status di dalam box putih (Tanpa Opacity/Transparan) */
         .text-success-light { color: #198754 !important; font-weight: 700 !important; }
         .header-gradient-mobile .text-warning { color: #b8860b !important; font-weight: 700 !important; } 
 
-        /* ==========================================
-           STYLE REKAP KARTU HORIZONTAL SATU BARIS
-           ========================================== */
         .rekap-card {
             background: linear-gradient(135deg, #115e3a 0%, #198754 100%);
             border-radius: 20px;
@@ -79,7 +70,6 @@
             margin-top: 4px;
         }
 
-        /* Gaya Hotbar Bawah Modern dengan Tombol Tengah Menonjol */
         .nav-bottom { position: fixed; bottom: 0; left: 0; right: 0; height: 65px; background: white; box-shadow: 0 -2px 15px rgba(0,0,0,0.1); z-index: 1000; }
         .nav-item-box { flex: 1; text-align: center; color: #6c757d; cursor: pointer; padding: 10px 0; }
         .nav-item-box.active { color: #198754; font-weight: bold; }
@@ -92,12 +82,14 @@
             height: 65px; 
             border-radius: 50%; 
             border: 5px solid #fff; 
-            box-shadow: 0 3px 10px rgba(25, 135, 84, 0.4);
-            font-size: 11px;
+            box-shadow: 0 3px 10px rgba(0, 0, 0, 0.15);
+            font-size: 10px;
             font-weight: bold;
             display: flex;
             align-items: center;
             justify-content: center;
+            text-align: center;
+            line-height: 1.1;
         }
         .profile-banner-solid {
             background-color: #198754 !important;
@@ -114,9 +106,6 @@
         .page-content.active { display: block; }
         .desktop-absen-card { display: none; } 
 
-        /* ==========================================
-           CSS DESKTOP (TAMPILAN LAPTOP/PC)
-           ========================================== */
         @media (min-width: 768px) {
             body { padding-bottom: 0; padding-left: 260px; }
             .nav-bottom { display: none !important; }
@@ -170,9 +159,6 @@
 </head>
 <body class="bg-light">
 
-<!-- ==========================================
-     SIDEBAR KIRI (HANYA MUNCUL DI PC)
-     ========================================== -->
 <div class="sidebar-left border-end d-flex flex-column justify-content-between">
     <div>
         <div class="mb-4 px-2">
@@ -194,23 +180,17 @@
     </div>
 </div>
 
-<!-- ==========================================
-     MENU 1: UTAMA (REKAP & DETAIL HARI KINERJA)
-     ========================================== -->
 <div id="page-utama" class="page-content active container py-4">
-    <!-- Header Pegawai -->
     <div class="header-gradient-mobile text-center text-md-start mb-4 mx-[-12px] mx-md-0">
         <h4 class="fw-bold mb-0">{{ Auth::user()->name }} ({{ Auth::user()->status_kerja }})</h4>
         <p class="mb-2 opacity-90">{{ Auth::user()->jabatan }}</p>
         
-        <!-- Jam & Tanggal Realtime Terintegrasi -->
         <div class="mb-2 small opacity-90">
-            <i class="bi bi-calendar3 me-1"></i> <span id="realtime-date">{{ \Carbon\Carbon::now()->translatedFormat('l, d F Y') }}</span>
+            <i class="bi bi-calendar3 me-1"></i> <span id="realtime-date">{{ \Carbon\Carbon::now('Asia/Jakarta')->translatedFormat('l, d F Y') }}</span>
             <span class="mx-1">|</span>
             <i class="bi bi-clock me-1"></i> <span id="realtime-clock">00:00:00</span> WIB
         </div>
         
-        <!-- Info Status Dinamis (Berubah Otomatis Sesuai Database) -->
         <div class="alert alert-secondary py-2 px-3 d-inline-block small mb-0 shadow-sm">
             <i class="bi bi-info-circle-fill me-1"></i> Status Hari Ini: 
             <span id="status-lokasi" class="{{ $absenHariIni ? 'text-success-light fw-bold' : 'text-warning fw-bold' }}">
@@ -220,17 +200,26 @@
     </div>
 
     <div class="row g-4">
-        <!-- Tombol Absen Versi Desktop (Otomatis Lock jika sudah absen) -->
         <div class="col-md-4 text-center desktop-absen-card">
             <div class="card border-0 shadow-sm p-4 d-flex flex-column align-items-center justify-content-center h-100">
-                <h5 class="fw-semibold mb-3">Ambil Absensi Hari Ini</h5>
-                <button type="button" class="btn {{ ($absenHariIni || !$isJamKerja) ? 'btn-secondary' : 'btn-success' }} btn-lg rounded-circle shadow my-2 btn-absen-trigger" style="width: 130px; height: 130px;" {{ ($absenHariIni || !$isJamKerja) ? 'disabled' : '' }}>
-                    <span class="fw-bold">HADIR</span>
-                </button>
+                <h5 class="fw-semibold mb-3">Ambil Presensi</h5>
+                
+                @if(!$absenHariIni)
+                    <button type="button" class="btn btn-success btn-lg rounded-circle shadow my-2 btn-absen-trigger" style="width: 130px; height: 130px;" {{ !$isJamKerja ? 'disabled' : '' }}>
+                        <span class="fw-bold">ABSEN<br>MASUK</span>
+                    </button>
+                @elseif($absenHariIni && $absenHariIni->jam_pulang == null)
+                    <button type="button" class="btn btn-warning text-dark btn-lg rounded-circle shadow my-2 btn-absen-trigger" style="width: 130px; height: 130px;" {{ !$isJamKerja ? 'disabled' : '' }}>
+                        <span class="fw-bold">ABSEN<br>PULANG</span>
+                    </button>
+                @else
+                    <button type="button" class="btn btn-secondary btn-lg rounded-circle shadow my-2 btn-absen-trigger" style="width: 130px; height: 130px;" disabled>
+                        <span class="fw-bold" style="font-size: 13px;">PRESENSI<br>LENGKAP</span>
+                    </button>
+                @endif
             </div>
         </div>
 
-        <!-- Container Rekap Bulanan Satu Baris -->
         <div class="col-md-8">
             <div class="card rekap-card shadow-sm">
                 <div class="d-flex justify-content-between align-items-start mb-4">
@@ -251,11 +240,11 @@
                 <div class="row text-center g-0">
                     <div class="col-4">
                         <div class="badge-num">{{ $totalHadir }}</div>
-                        <span class="label-status">Hadir</span>
+                        <span class="label-status">Hadir (Tepat Waktu)</span>
                     </div>
                     <div class="col-4">
                         <div class="badge-num">{{ $totalTerlambat }}</div>
-                        <span class="label-status">Terlambat</span>
+                        <span class="label-status">Terlambat (TL)</span>
                     </div>
                     <div class="col-4">
                         <div class="badge-num">{{ $tanpaKeterangan }}</div>
@@ -266,7 +255,6 @@
         </div>
     </div>
 
-    <!-- Filter Bulan & Tabel Detail Riwayat -->
     <div class="card border-0 shadow-sm p-3 mt-4">
         <div class="d-flex flex-column flex-sm-row justify-content-between align-items-start align-items-sm-center border-bottom pb-3 mb-3 gap-2">
             <h5 class="fw-bold mb-0">Detail Presensi Harian</h5>
@@ -277,30 +265,53 @@
         </div>
 
         <div class="table-responsive">
-            <table class="table table-hover align-middle mb-0" style="font-size: 14px;">
+            <table class="table table-hover align-middle mb-0" style="font-size: 13px;">
                 <thead class="table-light">
                     <tr>
                         <th>Hari / Tanggal</th>
-                        <th>Jam Masuk</th>
-                        <th>Status</th>
+                        <th class="text-center">Jam Masuk</th>
+                        <th class="text-center">Status Masuk</th>
+                        <th class="text-center">Jam Pulang</th>
+                        <th class="text-center">Status Pulang</th>
                     </tr>
                 </thead>
                 <tbody>
                     @forelse($riwayatAbsen as $absen)
                         <tr>
                             <td><strong>{{ \Carbon\Carbon::parse($absen->tanggal)->translatedFormat('l, d F Y') }}</strong></td>
-                            <td>{{ date('H:i', strtotime($absen->jam_masuk)) }} WIB</td>
-                            <td>
-                                @if($absen->status == 'Tepat Waktu' || $absen->status == 'Hadir')
+                            
+                            <!-- JAM MASUK -->
+                            <td class="text-center">
+                                {{ $absen->jam_masuk ? date('H:i', strtotime($absen->jam_masuk)) . ' WIB' : '-' }}
+                            </td>
+                            
+                            <td class="text-center">
+                                @if($absen->status_masuk == 'Tepat Waktu')
                                     <span class="badge bg-success">Tepat Waktu</span>
+                                @elseif(in_array($absen->status_masuk, ['TL 1', 'TL 2', 'TL 3', 'TL 4']))
+                                    <span class="badge bg-warning text-dark">{{ $absen->status_masuk }}</span>
                                 @else
-                                    <span class="badge bg-warning text-dark">Terlambat</span>
+                                    <span class="badge bg-secondary">-</span>
+                                @endif
+                            </td>
+
+                            <td class="text-center">
+                                {{ $absen->jam_pulang ? date('H:i', strtotime($absen->jam_pulang)) . ' WIB' : '-' }}
+                            </td>
+
+                            <td class="text-center">
+                                @if($absen->status_pulang == 'Tepat Waktu')
+                                    <span class="badge bg-success">Tepat Waktu</span>
+                                @elseif(in_array($absen->status_pulang, ['PSW 1', 'PSW 2', 'PSW 3', 'PSW 4']))
+                                    <span class="badge bg-danger">{{ $absen->status_pulang }}</span>
+                                @else
+                                    <span class="badge bg-secondary">-</span>
                                 @endif
                             </td>
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="3" class="text-center text-muted py-4">Belum ada riwayat presensi di bulan ini.</td>
+                            <td colspan="5" class="text-center text-muted py-4">Belum ada riwayat presensi di bulan ini.</td>
                         </tr>
                     @endforelse
                 </tbody>
@@ -309,9 +320,6 @@
     </div>
 </div>
 
-<!-- ==========================================
-     MENU 2: PROFIL, INFO AKUN & PENGATURAN
-     ========================================== -->
 <div id="page-profil" class="page-content container py-4">
     <div class="profile-banner-solid text-center text-md-start mb-4 mx-[-12px] mx-md-0">
         <h4 class="fw-bold mb-0 text-dark">Manajemen Profil</h4>
@@ -345,22 +353,13 @@
                 <h6 class="fw-bold text-muted mb-3 px-2">Pusat Pengaturan & Akses</h6>
                 
                 <div class="list-group list-group-flush">
-                    <!-- FIX: Tombol Lokasi Kantor Sekarang Aktif Mengarah ke Google Maps Sesuai Koordinat .env -->
-                    <a href="https://www.google.com/maps/search/?api=1&query={{ env('KANTOR_LATITUDE') }},{{ env('KANTOR_LONGITUDE') }}" target="_blank" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center py-3 border-0 rounded mb-2 bg-light text-decoration-none">
+                    <a href="https://www.google.com/maps/search/?api=1&query={{ $kantorLat }},{{ $kantorLng }}" target="_blank" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center py-3 border-0 rounded mb-2 bg-light text-decoration-none">
                         <div>
                             <i class="bi bi-geo-alt-fill text-danger me-3 fs-5"></i>
                             <span class="fw-semibold text-dark">Lokasi Kantor Wali Nagari</span>
                         </div>
                         <i class="bi bi-chevron-right text-muted"></i>
                     </a>
-
-                    <button type="button" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center py-3 border-0 rounded mb-2 bg-light">
-                        <div>
-                            <i class="bi bi-shield-lock-fill text-warning me-3 fs-5"></i>
-                            <span class="fw-semibold">Pengaturan Akun (Reset PW)</span>
-                        </div>
-                        <i class="bi bi-chevron-right text-muted"></i>
-                    </button>
 
                     <form action="{{ route('logout') }}" method="POST" class="w-100 mt-2">
                         @csrf
@@ -378,9 +377,6 @@
     </div>
 </div>
 
-<!-- ==========================================
-     HOTBAR NAVIGATION (HANYA DI MOBILE - DENGAN HADIR DI TENGAH)
-     ========================================== -->
 <div class="nav-bottom d-flex align-items-center border-top">
     <div class="nav-item-box active" onclick="switchPage('utama', this)">
         <i class="bi bi-clock-history fs-4"></i><br>
@@ -388,9 +384,19 @@
     </div>
     
     <div class="center-absen-wrapper">
-        <button type="button" class="btn {{ ($absenHariIni || !$isJamKerja) ? 'btn-secondary' : 'btn-success' }} btn-hadir-mobile btn-absen-trigger" {{ ($absenHariIni || !$isJamKerja) ? 'disabled' : '' }}>
-            HADIR
-        </button>
+        @if(!$absenHariIni)
+            <button type="button" class="btn btn-success btn-hadir-mobile btn-absen-trigger" {{ !$isJamKerja ? 'disabled' : '' }}>
+                ABSEN<br>MASUK
+            </button>
+        @elseif($absenHariIni && $absenHariIni->jam_pulang == null)
+            <button type="button" class="btn btn-warning text-dark btn-hadir-mobile btn-absen-trigger" {{ !$isJamKerja ? 'disabled' : '' }}>
+                ABSEN<br>PULANG
+            </button>
+        @else
+            <button type="button" class="btn btn-secondary btn-hadir-mobile btn-absen-trigger" disabled>
+                LENGKAP
+            </button>
+        @endif
     </div>
     
     <div class="nav-item-box" onclick="switchPage('profil', this)">
@@ -403,7 +409,6 @@
 <script>
     const statusLokasi = document.getElementById('status-lokasi');
 
-    // Jam Realtime
     function updateClock() {
         const now = new Date();
         
@@ -414,7 +419,6 @@
         const minutes = String(now.getMinutes()).padStart(2, '0');
         const seconds = String(now.getSeconds()).padStart(2, '0');
         
-        // Cek keberadaan elemen agar tidak error saat resize / ganti tab menu
         if (document.getElementById('realtime-date')) {
             document.getElementById('realtime-date').innerText = tanggalIndo;
         }
@@ -425,7 +429,6 @@
     setInterval(updateClock, 1000);
     updateClock();
     
-    // Logika Kirim Absen via AJAX
     document.querySelectorAll('.btn-absen-trigger').forEach(btn => {
         btn.addEventListener('click', function() {
             statusLokasi.className = "fw-semibold text-warning";
@@ -451,11 +454,12 @@
                     .then(data => {
                         if (data.success) {
                             statusLokasi.className = "text-success-light fw-bold";
-                            statusLokasi.innerText = "Sudah Absen (Berhasil)";
+                            statusLokasi.innerText = data.message;
                             
                             document.querySelectorAll('.btn-absen-trigger').forEach(b => {
                                 b.disabled = true;
                                 b.classList.replace('btn-success', 'btn-secondary');
+                                b.classList.replace('btn-warning', 'btn-secondary');
                             });
                             
                             setTimeout(() => { location.reload(); }, 1200);
@@ -491,8 +495,8 @@
         const index = items.indexOf(element);
 
         if(index !== -1) {
-            document.querySelectorAll('.sidebar-item')[index].classList.add('active');
-            document.querySelectorAll('.nav-item-box')[index].classList.add('active');
+            if(document.querySelectorAll('.sidebar-item')[index]) document.querySelectorAll('.sidebar-item')[index].classList.add('active');
+            if(document.querySelectorAll('.nav-item-box')[index]) document.querySelectorAll('.nav-item-box')[index].classList.add('active');
         }
     }
 </script>

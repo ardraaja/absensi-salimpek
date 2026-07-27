@@ -12,25 +12,26 @@ class AdminController extends Controller
 {
     public function index(Request $request)
     {
-        // 1. Ambil filter bulan (default: bulan sekarang 'YYYY-MM')
         $bulanDipilih = $request->get('bulan', date('Y-m'));
         $tahun = explode('-', $bulanDipilih)[0];
         $bulan = explode('-', $bulanDipilih)[1];
 
-        $sekarang = \Carbon\Carbon::now('Asia/Jakarta');
-        $hariIni = \Carbon\Carbon::today('Asia/Jakarta');
+        $sekarang = Carbon::now('Asia/Jakarta');
+        $hariIni = Carbon::today('Asia/Jakarta');
 
-        // 2. Hitung statistik ringkasan untuk hari ini (Hanya aktif jika sudah masuk jam kerja 07:30)
+        $kantorLat = DB::table('settings')->where('key', 'kantor_latitude')->value('value') ?? '-1.0825000';
+        $kantorLng = DB::table('settings')->where('key', 'kantor_longitude')->value('value') ?? '100.8250000';
+        $kantorRadius = DB::table('settings')->where('key', 'kantor_radius_meter')->value('value') ?? '50';
+
         $totalPegawai = DB::table('users')->where('role', 'pegawai')->count();
 
         $absenHariIni = DB::table('absensi')
             ->whereDate('tanggal', $hariIni)
             ->get();
 
-        $hadir = $absenHariIni->whereIn('status', ['Tepat Waktu', 'Hadir'])->count();
-        $terlambat = $absenHariIni->where('status', 'Terlambat')->count();
+        $hadir = $absenHariIni->where('status_masuk', 'Tepat Waktu')->count();
+        $terlambat = $absenHariIni->whereIn('status_masuk', ['TL 1', 'TL 2', 'TL 3', 'TL 4'])->count();
         
-        // FIX: Sebelum jam 07:30 WIB, status 'Belum Absen' dikunci di angka 0
         if ($sekarang->format('H:i') < '07:30') {
             $belumAbsen = 0;
         } else {
@@ -38,25 +39,22 @@ class AdminController extends Controller
             if ($belumAbsen < 0) $belumAbsen = 0;
         }
 
-        // 3. Tarik seluruh data pegawai beserta hitungan rekap akumulasi bulanan dinamis
         $daftarPegawai = DB::table('users')
             ->where('role', 'pegawai')
             ->get()
             ->map(function($pegawai) use ($tahun, $bulan, $bulanDipilih, $sekarang, $hariIni) {
-                // Ambil semua absensi milik pegawai ini di bulan yang dipilih
                 $absenBulanIni = DB::table('absensi')
                     ->where('user_id', $pegawai->id)
                     ->whereYear('tanggal', $tahun)
                     ->whereMonth('tanggal', $bulan)
                     ->get();
 
-                $pegawai->count_hadir = $absenBulanIni->whereIn('status', ['Tepat Waktu', 'Hadir'])->count();
-                $pegawai->count_telat = $absenBulanIni->where('status', 'Terlambat')->count();
+                $pegawai->count_hadir = $absenBulanIni->where('status_masuk', 'Tepat Waktu')->count();
+                $pegawai->count_telat = $absenBulanIni->whereIn('status_masuk', ['TL 1', 'TL 2', 'TL 3', 'TL 4'])->count();
                 
-                // Hitung hari kerja dinamis untuk pegawai ini berdasarkan tanggal terdaftar (created_at)
-                $tanggalDibuat = \Carbon\Carbon::parse($pegawai->created_at)->setTimezone('Asia/Jakarta')->startOfDay();
-                $awalBulan = \Carbon\Carbon::createFromDate($tahun, $bulan, 1, 0, 0, 0, 'Asia/Jakarta')->startOfMonth();
-                $akhirBulan = \Carbon\Carbon::createFromDate($tahun, $bulan, 1, 0, 0, 0, 'Asia/Jakarta')->endOfMonth();
+                $tanggalDibuat = Carbon::parse($pegawai->created_at)->setTimezone('Asia/Jakarta')->startOfDay();
+                $awalBulan = Carbon::createFromDate($tahun, $bulan, 1, 0, 0, 0, 'Asia/Jakarta')->startOfMonth();
+                $akhirBulan = Carbon::createFromDate($tahun, $bulan, 1, 0, 0, 0, 'Asia/Jakarta')->endOfMonth();
 
                 $totalHariKerjaPegawai = 0;
 
@@ -83,12 +81,13 @@ class AdminController extends Controller
                 $tanpaKeterangan = $totalHariKerjaPegawai - $absenBulanIni->count();
                 $pegawai->count_alpa = ($tanpaKeterangan < 0) ? 0 : $tanpaKeterangan;
 
-                // Lampirkan data riwayat mentah untuk keperluan parsing modal detail via Javascript JSON
                 $pegawai->riwayat_json = $absenBulanIni->map(function($a) {
                     return [
-                        'hari' => \Carbon\Carbon::parse($a->tanggal)->translatedFormat('l, d F Y'),
-                        'jam' => $a->jam_masuk ? date('H:i', strtotime($a->jam_masuk)) . ' WIB' : '-',
-                        'status' => $a->status,
+                        'hari' => Carbon::parse($a->tanggal)->translatedFormat('l, d F Y'),
+                        'jam_masuk' => $a->jam_masuk ? date('H:i', strtotime($a->jam_masuk)) . ' WIB' : '-',
+                        'status_masuk' => $a->status_masuk ?? '-',
+                        'jam_pulang' => $a->jam_pulang ? date('H:i', strtotime($a->jam_pulang)) . ' WIB' : '-',
+                        'status_pulang' => $a->status_pulang ?? '-',
                         'lat' => $a->latitude ?? '-',
                         'lng' => $a->longitude ?? '-'
                     ];
@@ -98,12 +97,20 @@ class AdminController extends Controller
             });
 
         return view('admin.dashboard', compact(
-            'totalPegawai', 'hadir', 'terlambat', 'belumAbsen', 'bulanDipilih', 'daftarPegawai'
+            'totalPegawai', 
+            'hadir', 
+            'terlambat', 
+            'belumAbsen', 
+            'bulanDipilih', 
+            'daftarPegawai',
+            'kantorLat',
+            'kantorLng',
+            'kantorRadius'
         ));
     }
+
     public function store(Request $request)
     {
-        // 1. Validasi input data dari form
         $request->validate([
             'name' => 'required|string|max:255',
             'email' => 'required|string|email|max:255|unique:users',
@@ -112,22 +119,21 @@ class AdminController extends Controller
             'status_kerja' => 'required|string',
         ]);
 
-        // 2. Simpan data pegawai baru ke tabel users dengan role 'pegawai'
         DB::table('users')->insert([
             'name' => $request->name,
             'nip' => $request->nip ?? '-',
             'email' => $request->email,
-            'password' => Hash::make($request->password), // Password di-encrypt aman
+            'password' => Hash::make($request->password),
             'jabatan' => $request->jabatan,
             'status_kerja' => $request->status_kerja,
-            'role' => 'pegawai', // Mengunci hak akses sebagai pegawai
-            'created_at' => \Carbon\Carbon::now('Asia/Jakarta'),
-            'updated_at' => \Carbon\Carbon::now('Asia/Jakarta'),
+            'role' => 'pegawai',
+            'created_at' => Carbon::now('Asia/Jakarta'),
+            'updated_at' => Carbon::now('Asia/Jakarta'),
         ]);
 
-        // 3. Kembali ke dashboard dengan membawa pesan sukses popup
         return redirect()->route('admin.dashboard')->with('success', 'Akun pegawai baru berhasil didaftarkan!');
     }
+
     public function update(Request $request, $id)
     {
         $request->validate([
@@ -135,24 +141,54 @@ class AdminController extends Controller
             'jabatan' => 'required|string|max:255',
         ]);
 
-        // Update data nama, nip, dan jabatan pegawai ke database
         DB::table('users')->where('id', $id)->update([
             'name' => $request->name,
             'nip' => $request->nip ?? '-',
             'jabatan' => $request->jabatan,
-            'updated_at' => \Carbon\Carbon::now('Asia/Jakarta'),
+            'updated_at' => Carbon::now('Asia/Jakarta'),
         ]);
 
         return redirect()->route('admin.dashboard')->with('success', 'Data akun pegawai berhasil diperbarui!');
     }
 
-    // Fungsi untuk menghapus akun pegawai (Delete)
+    public function updateLokasiKantor(Request $request)
+    {
+        $lat = $request->input('latitude');
+        $lng = $request->input('longitude');
+        $radius = $request->input('radius');
+
+        if (!$lat || !$lng || !$radius) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Data latitude, longitude, atau radius tidak boleh kosong!'
+            ], 400);
+        }
+
+        // Eksekusi Update ke Database
+        DB::table('settings')->where('key', 'kantor_latitude')->update([
+            'value' => (string)$lat,
+            'updated_at' => Carbon::now('Asia/Jakarta')
+        ]);
+
+        DB::table('settings')->where('key', 'kantor_longitude')->update([
+            'value' => (string)$lng,
+            'updated_at' => Carbon::now('Asia/Jakarta')
+        ]);
+
+        DB::table('settings')->where('key', 'kantor_radius_meter')->update([
+            'value' => (string)$radius,
+            'updated_at' => Carbon::now('Asia/Jakarta')
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Lokasi kantor berhasil diperbarui ke database!'
+        ]);
+    }
+
     public function destroy($id)
     {
-        // 1. Hapus semua data riwayat absensi yang terikat dengan user_id pegawai ini terlebih dahulu
         DB::table('absensi')->where('user_id', $id)->delete();
-
-        // 2. Hapus data utama akun pegawai dari tabel users
         DB::table('users')->where('id', $id)->delete();
 
         return redirect()->route('admin.dashboard')->with('success', 'Akun pegawai dan seluruh riwayat absensinya telah dihapus permanen!');

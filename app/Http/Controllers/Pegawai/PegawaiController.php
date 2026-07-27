@@ -11,51 +11,86 @@ use Carbon\Carbon;
 
 class PegawaiController extends Controller
 {
+    private function hitungTL($jamMasuk)
+    {
+        $jamBuka = Carbon::createFromFormat('H:i:s', '07:30:00');
+        $waktuAbsen = Carbon::createFromFormat('H:i:s', $jamMasuk);
+
+        if ($waktuAbsen->lte($jamBuka)) {
+            return 'Tepat Waktu';
+        }
+
+        $selisihMenit = $jamBuka->diffInMinutes($waktuAbsen);
+
+        if ($selisihMenit >= 1 && $selisihMenit <= 30) {
+            return 'TL 1';
+        } elseif ($selisihMenit >= 31 && $selisihMenit <= 60) {
+            return 'TL 2';
+        } elseif ($selisihMenit >= 61 && $selisihMenit <= 90) {
+            return 'TL 3';
+        } else {
+            return 'TL 4';
+        }
+    }
+
+    private function hitungPSW($jamPulang)
+    {
+        $jamPulangResmi = Carbon::createFromFormat('H:i:s', '16:00:00');
+        $waktuAbsen = Carbon::createFromFormat('H:i:s', $jamPulang);
+
+        if ($waktuAbsen->gte($jamPulangResmi)) {
+            return 'Tepat Waktu';
+        }
+
+        $selisihMenit = $waktuAbsen->diffInMinutes($jamPulangResmi);
+
+        if ($selisihMenit >= 1 && $selisihMenit <= 30) {
+            return 'PSW 1';
+        } elseif ($selisihMenit >= 31 && $selisihMenit <= 60) {
+            return 'PSW 2';
+        } elseif ($selisihMenit >= 61 && $selisihMenit <= 90) {
+            return 'PSW 3';
+        } else {
+            return 'PSW 4';
+        }
+    }
+
     public function index(Request $request)
     {
         $user = Auth::user();
         
-        // 1. Ambil filter bulan (default: bulan sekarang 'YYYY-MM')
         $bulanDipilih = $request->get('bulan', date('Y-m'));
         $tahun = explode('-', $bulanDipilih)[0];
         $bulan = explode('-', $bulanDipilih)[1];
 
-        // Buat objek Carbon dari bulan yang dipilih
-        $awalBulan = \Carbon\Carbon::createFromDate($tahun, $bulan, 1, 0, 0, 0, 'Asia/Jakarta')->startOfMonth();
-        $akhirBulan = \Carbon\Carbon::createFromDate($tahun, $bulan, 1, 0, 0, 0, 'Asia/Jakarta')->endOfMonth();
+        $awalBulan = Carbon::createFromDate($tahun, $bulan, 1, 0, 0, 0, 'Asia/Jakarta')->startOfMonth();
+        $akhirBulan = Carbon::createFromDate($tahun, $bulan, 1, 0, 0, 0, 'Asia/Jakarta')->endOfMonth();
         
-        $tanggalDibuat = \Carbon\Carbon::parse($user->created_at)->setTimezone('Asia/Jakarta')->startOfDay();
-        $sekarang = \Carbon\Carbon::now('Asia/Jakarta');
-        $hariIni = \Carbon\Carbon::today('Asia/Jakarta');
+        $tanggalDibuat = Carbon::parse($user->created_at)->setTimezone('Asia/Jakarta')->startOfDay();
+        $sekarang = Carbon::now('Asia/Jakarta');
+        $hariIni = Carbon::today('Asia/Jakarta');
 
         $totalHariKerja = 0;
 
-        // ATURAN 1: Pengecekan apakah pegawai sudah terdaftar/aktif di bulan yang dipilih
-        // Jika bulan yang dipilih terjadi SEBELUM akun dibuat, atau SEBELUM bulan berjalan (Masa Depan)
         if ($awalBulan->format('Y-m') < $tanggalDibuat->format('Y-m') || $awalBulan->format('Y-m') > $sekarang->format('Y-m')) {
-            // Hari kerja langsung 0, tidak perlu jalankan loop
             $totalHariKerja = 0;
         } else {
-            // Tentukan batas awal hitung loop
             if ($tanggalDibuat->format('Y-m') === $bulanDipilih) {
                 $tanggalMulaiHitung = $tanggalDibuat->copy();
             } else {
                 $tanggalMulaiHitung = $awalBulan->copy();
             }
 
-            // Tentukan batas akhir hitung loop
             if ($hariIni->format('Y-m') === $bulanDipilih) {
-                // ATURAN 2: Jika jam sekarang sebelum 07:30 WIB, hari ini belum dihitung sebagai hari kerja
                 if ($sekarang->format('H:i') < '07:30') {
-                    $tanggalAkhirHitung = $hariIni->copy()->subDay(); // Cuma hitung sampai kemarin
+                    $tanggalAkhirHitung = $hariIni->copy()->subDay();
                 } else {
-                    $tanggalAkhirHitung = $hariIni->copy(); // Sudah masuk jam kerja, hitung sampai hari ini
+                    $tanggalAkhirHitung = $hariIni->copy();
                 }
             } else {
                 $tanggalAkhirHitung = $akhirBulan->copy();
             }
 
-            // Jalankan Loop Perhitungan Hari Kerja (Senin - Jumat)
             if ($tanggalMulaiHitung->lte($tanggalAkhirHitung)) {
                 $tempTanggal = $tanggalMulaiHitung->copy();
                 while ($tempTanggal->lte($tanggalAkhirHitung)) {
@@ -67,7 +102,6 @@ class PegawaiController extends Controller
             }
         }
 
-        // 4. Tarik data kehadiran dari database
         $riwayatAbsen = DB::table('absensi')
             ->where('user_id', $user->id)
             ->whereYear('tanggal', $tahun)
@@ -75,22 +109,24 @@ class PegawaiController extends Controller
             ->orderBy('tanggal', 'desc')
             ->get();
 
-        // 5. Hitung statistik riil
-        $totalHadir = $riwayatAbsen->whereIn('status', ['Tepat Waktu', 'Hadir'])->count();
-        $totalTerlambat = $riwayatAbsen->where('status', 'Terlambat')->count();
+        $totalHadir = $riwayatAbsen->where('status_masuk', 'Tepat Waktu')->count();
+        $totalTerlambat = $riwayatAbsen->whereIn('status_masuk', ['TL 1', 'TL 2', 'TL 3', 'TL 4'])->count();
         
         $totalPresensiIsi = $riwayatAbsen->count();
         $tanpaKeterangan = $totalHariKerja - $totalPresensiIsi;
         if ($tanpaKeterangan < 0) $tanpaKeterangan = 0;
 
-        // 6. Pencarian data absensi hari ini (WIB)
         $absenHariIni = DB::table('absensi')
             ->where('user_id', $user->id)
             ->whereDate('tanggal', $hariIni->format('Y-m-d'))
             ->first();
 
         if ($absenHariIni) {
-            $statusHariIni = 'Sudah Absen (' . $absenHariIni->status . ' - ' . date('H:i', strtotime($absenHariIni->jam_masuk)) . ')';
+            if ($absenHariIni->jam_pulang != null) {
+                $statusHariIni = 'Sudah Absen Lengkap (Masuk: ' . $absenHariIni->status_masuk . ' | Pulang: ' . $absenHariIni->status_pulang . ')';
+            } else {
+                $statusHariIni = 'Sudah Absen Masuk (' . $absenHariIni->status_masuk . ' - ' . date('H:i', strtotime($absenHariIni->jam_masuk)) . ')';
+            }
         } else {
             if ($sekarang->format('H:i') < '07:30' || $sekarang->format('H:i') > '17:00') {
                 $statusHariIni = 'Sekarang di Luar Jam Kerja';
@@ -101,6 +137,9 @@ class PegawaiController extends Controller
 
         $isJamKerja = ($sekarang->format('H:i') >= '07:30' && $sekarang->format('H:i') <= '17:00');
 
+        $kantorLat = DB::table('settings')->where('key', 'kantor_latitude')->value('value') ?? '-1.0825000';
+        $kantorLng = DB::table('settings')->where('key', 'kantor_longitude')->value('value') ?? '100.8250000';
+
         return view('pegawai.dashboard', compact(
             'riwayatAbsen', 
             'totalHariKerja', 
@@ -110,7 +149,9 @@ class PegawaiController extends Controller
             'bulanDipilih',
             'statusHariIni',
             'absenHariIni',
-            'isJamKerja'
+            'isJamKerja',
+            'kantorLat',
+            'kantorLng'
         ));
     }
 
@@ -130,9 +171,13 @@ class PegawaiController extends Controller
         $pegawaiLat = $request->latitude;
         $pegawaiLng = $request->longitude;
 
-        $kantorLat = env('KANTOR_LATITUDE');
-        $kantorLng = env('KANTOR_LONGITUDE');
-        $radiusMaksimal = env('KANTOR_RADIUS_METER', 20);
+        $settingLat = DB::table('settings')->where('key', 'kantor_latitude')->value('value');
+        $settingLng = DB::table('settings')->where('key', 'kantor_longitude')->value('value');
+        $settingRadius = DB::table('settings')->where('key', 'kantor_radius_meter')->value('value');
+
+        $kantorLat = $settingLat ?? -1.0825000;
+        $kantorLng = $settingLng ?? 100.8250000;
+        $radiusMaksimal = $settingRadius ?? 50;
 
         $earthRadius = 6371000; 
         
@@ -154,22 +199,53 @@ class PegawaiController extends Controller
             ], 400);
         }
 
-        $status = ($jamSekarang <= '08:30:00') ? 'Tepat Waktu' : 'Terlambat';
+        $absenHariIni = DB::table('absensi')
+            ->where('user_id', Auth::id())
+            ->whereDate('tanggal', $tanggalHariIni)
+            ->first();
 
-        DB::table('absensi')->insert([
-            'user_id' => Auth::id(),
-            'tanggal' => $tanggalHariIni,
-            'jam_masuk' => $jamSekarang,
-            'latitude' => $pegawaiLat,
-            'longitude' => $pegawaiLng,
-            'status' => $status,
-            'created_at' => $sekarang,
-            'updated_at' => $sekarang,
-        ]);
+        if (!$absenHariIni) {
+            $statusTL = $this->hitungTL($jamSekarang);
 
-        return response()->json([
-            'success' => true,
-            'message' => 'Absen berhasil dicatat! Status: ' . $status
-        ]);
+            DB::table('absensi')->insert([
+                'user_id' => Auth::id(),
+                'tanggal' => $tanggalHariIni,
+                'jam_masuk' => $jamSekarang,
+                'latitude' => $pegawaiLat,
+                'longitude' => $pegawaiLng,
+                'status_masuk' => $statusTL,
+                'status' => $statusTL,
+                'created_at' => $sekarang,
+                'updated_at' => $sekarang,
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Absen Masuk Berhasil! Status: ' . $statusTL
+            ]);
+
+        } else {
+            if ($absenHariIni->jam_pulang != null) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Anda sudah melakukan Absen Masuk dan Absen Pulang untuk hari ini!'
+                ], 400);
+            }
+
+            $statusPSW = $this->hitungPSW($jamSekarang);
+
+            DB::table('absensi')
+                ->where('id', $absenHariIni->id)
+                ->update([
+                    'jam_pulang' => $jamSekarang,
+                    'status_pulang' => $statusPSW,
+                    'updated_at' => $sekarang,
+                ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Absen Pulang Berhasil! Status Pulang: ' . $statusPSW
+            ]);
+        }
     }
 }

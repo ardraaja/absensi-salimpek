@@ -6,14 +6,12 @@
     <title>Dashboard Admin - Wali Nagari Salimpek</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css">
     <style>
-        /* ==========================================
-           CSS MOBILE-FIRST (TAMPILAN HP)
-           ========================================== */
         body { padding-bottom: 80px; padding-top: 0; }
         .sidebar-left { display: none !important; } 
         
-        /* Banner Solid Warna Tema Admin */
         .admin-banner-solid {
             background-color: #198754 !important;
             border-bottom-left-radius: 20px;
@@ -21,7 +19,6 @@
             padding: 25px 20px;
         }
 
-        /* Gaya Rekap Satu Baris Horizontal */
         .rekap-card {
             background: linear-gradient(135deg, #115e3a 0%, #198754 100%);
             border-radius: 20px;
@@ -50,8 +47,6 @@
         }
         .label-status { font-size: 11px; opacity: 0.85; display: block; margin-top: 4px; }
 
-        /* Gaya Hotbar Bawah */
-        .nav-bottom { position: fixed; bottom: 0; left: 0; right: 0; height: 65px; background: white; box-shadow: 0 -2px 15px rgba(0,0,0,0.1); z-index: 1000; }
         .nav-bottom { position: fixed; bottom: 0; left: 0; right: 0; height: 65px; background: white; box-shadow: 0 -2px 15px rgba(0,0,0,0.1); z-index: 1000; }
         .nav-item-box { flex: 1; text-align: center; color: #6c757d; cursor: pointer; padding: 10px 0; }
         .nav-item-box.active { color: #198754; font-weight: bold; }
@@ -59,9 +54,6 @@
         .page-content { display: none; }
         .page-content.active { display: block; }
 
-        /* ==========================================
-           CSS DESKTOP (TAMPILAN LAPTOP/PC)
-           ========================================== */
         @media (min-width: 768px) {
             body { padding-bottom: 0; padding-left: 260px; }
             .nav-bottom { display: none !important; }
@@ -102,9 +94,6 @@
 </head>
 <body class="bg-light">
 
-<!-- ==========================================
-     SIDEBAR KIRI (HANYA MUNCUL DI PC)
-     ========================================== -->
 <div class="sidebar-left border-end d-flex flex-column justify-content-between">
     <div>
         <div class="mb-4 px-2">
@@ -126,17 +115,12 @@
     </div>
 </div>
 
-<!-- ==========================================
-     MENU 1: UTAMA (DASHBOARD & TABEL REKAP PEGAWAI)
-     ========================================== -->
 <div id="page-utama" class="page-content active container py-4">
-    <!-- Header Admin -->
     <div class="mb-4 text-center text-md-start">
         <h4 class="fw-bold mb-0 text-dark">Dashboard Wali Nagari</h4>
         <p class="text-muted small mb-0">Nagari Salimpek, Kecamatan Lembah Gumanti</p>
     </div>
 
-    <!-- Container Rekap Presensi Hari Ini (Gaya Satu Baris) -->
     <div class="card rekap-card shadow-sm mb-4">
         <div class="d-flex justify-content-between align-items-start mb-4">
             <div class="d-flex align-items-center">
@@ -156,25 +140,23 @@
         <div class="row text-center g-0">
             <div class="col-4">
                 <div class="badge-num bg-success">{{ $hadir }}</div>
-                <span class="label-status">Hadir</span>
+                <span class="label-status">Hadir (Tepat Waktu)</span>
             </div>
             <div class="col-4">
                 <div class="badge-num bg-warning text-dark">{{ $terlambat }}</div>
-                <span class="label-status">Terlambat</span>
+                <span class="label-status">Terlambat (TL)</span>
             </div>
             <div class="col-4">
                 <div class="badge-num bg-danger">{{ $belumAbsen }}</div>
-                <span class="label-status">tanpa keterangan</span>
+                <span class="label-status">Tanpa Keterangan</span>
             </div>
         </div>
     </div>
 
-    <!-- Tabel Monitoring Akumulasi Bulanan Seluruh Pegawai -->
     <div class="card border-0 shadow-sm p-3">
         <div class="d-flex flex-column flex-sm-row justify-content-between align-items-start align-items-sm-center border-bottom pb-3 mb-3 gap-2">
             <h5 class="fw-bold mb-0">Rekapitulasi Kinerja Pegawai</h5>
             
-            <!-- Pilih Bulan -->
             <form action="/admin/dashboard" method="GET" id="form-bulan" class="input-group" style="max-width: 250px;">
                 <span class="input-group-text bg-white small" style="font-size: 13px;">Bulan</span>
                 <input type="month" name="bulan" class="form-control form-control-sm" value="{{ $bulanDipilih ?? date('Y-m') }}" onchange="document.getElementById('form-bulan').submit();">
@@ -215,7 +197,6 @@
                             <td class="text-center fw-bold text-warning">{{ $pegawai->count_telat }}</td>
                             <td class="text-center fw-bold text-danger">{{ $pegawai->count_alpa }}</td>
                             <td class="text-center">
-                                <!-- Tombol Detail Popup Data Log Jurnal Absensi -->
                                 <button type="button" class="btn btn-sm btn-outline-success px-2 py-1" style="font-size: 11px;" onclick="bukaModalDetail('{{ $pegawai->name }}', '{{ $pegawai->jabatan }}', '{{ $pegawai->nip }}', '{{ json_encode($pegawai->riwayat_json) }}')">
                                     <i class="bi bi-eye-fill"></i> Detail
                                 </button>
@@ -232,18 +213,13 @@
     </div>
 </div>
 
-<!-- ==========================================
-     MENU 2: PROFIL & PUSAT KELOLA AKUN
-     ========================================== -->
 <div id="page-profil" class="page-content container py-4">
-    <!-- Header Kelola Akun -->
     <div class="admin-banner-solid text-center text-md-start mb-4 mx-[-12px] mx-md-0">
         <h4 class="fw-bold mb-0 text-dark">Manajemen Profil</h4>
         <p class="text-dark small mb-0 opacity-75">Pusat kendali dan administrasi aplikasi</p>
     </div>
 
     <div class="row g-4 justify-content-center justify-content-md-start">
-        <!-- Info Akun Admin -->
         <div class="col-md-5">
             <div class="card border-0 shadow-sm p-4 text-center h-100">
                 <div class="mx-auto bg-success text-white rounded-circle d-flex align-items-center justify-content-center mb-3" style="width: 75px; height: 75px;">
@@ -261,13 +237,11 @@
             </div>
         </div>
 
-        <!-- Tombol Menu Akses Admin -->
         <div class="col-md-6">
             <div class="card border-0 shadow-sm p-3">
                 <h6 class="fw-bold text-muted mb-3 px-2">Pusat Pengaturan & Akses</h6>
                 
                 <div class="list-group list-group-flush">
-                    <!-- Tombol Kelola Akun Pegawai (Membuka Modal Popup) -->
                     <button type="button" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center py-3 border-0 rounded mb-2 bg-light" data-bs-toggle="modal" data-bs-target="#modalKelolaPegawai">
                         <div>
                             <i class="bi bi-people-fill text-primary me-3 fs-5"></i>
@@ -276,14 +250,13 @@
                         <i class="bi bi-chevron-right text-muted"></i>
                     </button>
 
-                    <!-- Tombol Cek Lokasi Kantor -->
-                    <a href="https://www.google.com/maps/search/?api=1&query={{ env('KANTOR_LATITUDE') }},{{ env('KANTOR_LONGITUDE') }}" target="_blank" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center py-3 border-0 rounded mb-2 bg-light text-decoration-none">
+                    <button type="button" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center py-3 border-0 rounded mb-2 bg-light text-decoration-none" data-bs-toggle="modal" data-bs-target="#modalSettingLokasi">
                         <div>
                             <i class="bi bi-geo-alt-fill text-danger me-3 fs-5"></i>
-                            <span class="fw-semibold text-dark">Lokasi Koordinat Kantor</span>
+                            <span class="fw-semibold text-dark">Atur Lokasi Koordinat Kantor</span>
                         </div>
                         <i class="bi bi-chevron-right text-muted"></i>
-                    </a>
+                    </button>
 
                     <form action="{{ route('logout') }}" method="POST" class="w-100 mt-2">
                         @csrf
@@ -301,9 +274,47 @@
     </div>
 </div>
 
-<!-- ==========================================
-     POPUP MODAL: DETAIL LOG ABSENSI JURNAL PEGAWAI
-     ========================================== -->
+<div class="modal fade" id="modalSettingLokasi" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title fw-bold">
+                    <i class="bi bi-pin-map-fill me-2"></i>Pengaturan Lokasi & Radius Kantor
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-3">
+                <p class="text-muted small mb-2">
+                    <i class="bi bi-info-circle me-1"></i> Klik pada peta atau geser <i>marker</i> merah untuk menentukan posisi persis kantor Wali Nagari.
+                </p>
+                
+                <div id="map-kantor" style="height: 350px; border-radius: 12px;" class="mb-3 border"></div>
+
+                <div class="row g-2">
+                    <div class="col-md-4">
+                        <label class="form-label small fw-bold">Latitude</label>
+                        <input type="text" id="input-lat" class="form-control form-control-sm bg-light" value="{{ $kantorLat }}" readonly>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label small fw-bold">Longitude</label>
+                        <input type="text" id="input-lng" class="form-control form-control-sm bg-light" value="{{ $kantorLng }}" readonly>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label small fw-bold">Radius Absen (Meter)</label>
+                        <input type="number" id="input-radius" class="form-control form-control-sm" value="{{ $kantorRadius }}">
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer bg-light">
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Batal</button>
+                <button type="button" class="btn btn-success btn-sm fw-bold" onclick="simpanLokasiKantor()">
+                    <i class="bi bi-save me-1"></i> Simpan Lokasi Baru
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <div class="modal fade" id="modalDetailPegawai" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
         <div class="modal-content border-0 shadow-lg">
@@ -322,14 +333,13 @@
                         <thead class="table-light text-center">
                             <tr>
                                 <th>Hari / Tanggal</th>
-                                <th>Jam Absen</th>
-                                <th>Status</th>
-                                <th>Latitude</th>
-                                <th>Longitude</th>
+                                <th>Jam Masuk</th>
+                                <th>Status Masuk</th>
+                                <th>Jam Pulang</th>
+                                <th>Status Pulang</th>
                             </tr>
                         </thead>
                         <tbody id="detail-table-body">
-                            <!-- Diisi dinamis via JavaScript -->
                         </tbody>
                     </table>
                 </div>
@@ -341,9 +351,6 @@
     </div>
 </div>
 
-<!-- ==========================================
-     POPUP MODAL: KELOLA AKUN PEGAWAI (DENGAN FUNGSI EDIT & HAPUS)
-     ========================================== -->
 <div class="modal fade" id="modalKelolaPegawai" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-lg modal-dialog-scrollable">
         <div class="modal-content border-0 shadow">
@@ -352,12 +359,10 @@
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body p-3">
-                <!-- Tombol Tambah Pegawai Baru -->
                 <button class="btn btn-success btn-sm mb-3 fw-semibold shadow-sm" data-bs-toggle="collapse" data-bs-target="#collapseTambahPegawai">
                     <i class="bi bi-person-plus-fill me-1"></i> Daftarkan Pegawai Baru
                 </button>
 
-                <!-- Form Collapse Tambah Akun -->
                 <div class="collapse mb-3" id="collapseTambahPegawai">
                     <div class="card p-3 border border-success-subtle bg-light shadow-sm">
                         <form action="{{ route('admin.pegawai.store') }}" method="POST">
@@ -397,7 +402,6 @@
                     </div>
                 </div>
 
-                <!-- List Daftar Manajemen Aksi -->
                 <h6 class="fw-bold text-muted mb-2 small mt-2">Daftar Akun Terdaftar</h6>
                 <div class="list-group gap-2">
                     @forelse($daftarPegawai as $p)
@@ -420,9 +424,6 @@
     </div>
 </div>
 
-<!-- ==========================================
-     POPUP POPUP REAL: MODAL EDIT DATA AKUN
-     ========================================== -->
 <div class="modal fade" id="modalEditAkun" tabindex="-1" aria-hidden="true" style="z-index: 1060;">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content border-0 shadow-lg">
@@ -455,9 +456,6 @@
     </div>
 </div>
 
-<!-- ==========================================
-     POPUP POPUP REAL: MODAL KONFIRMASI HAPUS PERINGATAN
-     ========================================== -->
 <div class="modal fade" id="modalKonfirmasiHapus" tabindex="-1" aria-hidden="true" style="z-index: 1060;">
     <div class="modal-dialog modal-dialog-centered modal-sm">
         <div class="modal-content border-0 shadow-lg">
@@ -482,9 +480,6 @@
     </div>
 </div>
 
-<!-- ==========================================
-     HOTBAR NAVIGATION (HANYA DI MOBILE)
-     ========================================== -->
 <div class="nav-bottom d-flex align-items-center border-top">
     <div class="nav-item-box active" onclick="switchPage('utama', this)">
         <i class="bi bi-speedometer2 fs-4"></i><br>
@@ -497,8 +492,132 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
 <script>
-    // Penanganan Buka Modal Detail Jurnal Absensi Pegawai Dinamis via JSON Parsing
+    let map, marker, circle;
+
+    document.getElementById('modalSettingLokasi').addEventListener('shown.bs.modal', function () {
+        let defaultLat = parseFloat(document.getElementById('input-lat').value) || -1.0825000;
+        let defaultLng = parseFloat(document.getElementById('input-lng').value) || 100.8250000;
+        let defaultRadius = parseInt(document.getElementById('input-radius').value) || 50;
+
+        if (!map) {
+            map = L.map('map-kantor').setView([defaultLat, defaultLng], 17);
+
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                maxZoom: 19,
+                attribution: '© OpenStreetMap'
+            }).addTo(map);
+
+            marker = L.marker([defaultLat, defaultLng], { draggable: true }).addTo(map);
+            
+            circle = L.circle([defaultLat, defaultLng], {
+                color: '#198754',
+                fillColor: '#198754',
+                fillOpacity: 0.2,
+                radius: defaultRadius
+            }).addTo(map);
+
+            marker.on('dragend', function () {
+                let position = marker.getLatLng();
+                updateInputs(position.lat, position.lng);
+            });
+
+            map.on('click', function (e) {
+                updateInputs(e.latlng.lat, e.latlng.lng);
+            });
+
+            document.getElementById('input-radius').addEventListener('input', function() {
+                let rad = parseInt(this.value) || 0;
+                circle.setRadius(rad);
+            });
+
+        } else {
+            map.setView([defaultLat, defaultLng], 17);
+            marker.setLatLng([defaultLat, defaultLng]);
+            circle.setLatLng([defaultLat, defaultLng]);
+            circle.setRadius(defaultRadius);
+            map.invalidateSize();
+        }
+    });
+
+    function updateInputs(lat, lng) {
+        let formattedLat = parseFloat(lat).toFixed(7);
+        let formattedLng = parseFloat(lng).toFixed(7);
+
+        document.getElementById('input-lat').value = formattedLat;
+        document.getElementById('input-lng').value = formattedLng;
+
+        if (marker) marker.setLatLng([formattedLat, formattedLng]);
+        if (circle) circle.setLatLng([formattedLat, formattedLng]);
+    }
+
+    function simpanLokasiKantor() {
+        let lat = document.getElementById('input-lat').value;
+        let lng = document.getElementById('input-lng').value;
+        let radius = document.getElementById('input-radius').value;
+
+        Swal.fire({
+            title: 'Menyimpan Lokasi...',
+            text: 'Mohon tunggu sebentar',
+            allowOutsideClick: false,
+            didOpen: () => {
+                Swal.showLoading();
+            }
+        });
+
+        fetch('{{ route("admin.updateLokasi") }}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                'Accept': 'application/json'
+            },
+            body: JSON.stringify({
+                latitude: String(lat),
+                longitude: String(lng),
+                radius: parseInt(radius)
+            })
+        })
+        .then(async response => {
+            const data = await response.json();
+            if (!response.ok) {
+                throw new Error(data.message || 'Gagal menyimpan ke database');
+            }
+            return data;
+        })
+        .then(data => {
+            if (data.success) {
+                Swal.fire({
+                    icon: 'success',
+                    title: 'Berhasil!',
+                    text: data.message,
+                    confirmButtonColor: '#198754',
+                    confirmButtonText: 'OK'
+                }).then(() => {
+                    location.reload();
+                });
+            } else {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Gagal!',
+                    text: data.message,
+                    confirmButtonColor: '#dc3545'
+                });
+            }
+        })
+        .catch(error => {
+            Swal.fire({
+                icon: 'error',
+                title: 'Terjadi Kesalahan',
+                text: error.message,
+                confirmButtonColor: '#dc3545'
+            });
+        });
+    }
+
     function bukaModalDetail(nama, jabatan, nip, riwayatJson) {
         document.getElementById('detail-title-nama').innerText = "Jurnal Absensi: " + nama;
         document.getElementById('detail-info-nama').innerText = nama;
@@ -506,20 +625,22 @@
         
         const riwayat = JSON.parse(riwayatJson);
         const tbody = document.getElementById('detail-table-body');
-        tbody.innerHTML = ''; // Reset baris lama
+        tbody.innerHTML = '';
 
         if(riwayat.length === 0) {
             tbody.innerHTML = `<tr><td colspan="5" class="text-center text-muted py-3">Tidak ada riwayat presensi di bulan ini.</td></tr>`;
         } else {
             riwayat.forEach(item => {
-                let badgeColor = (item.status === 'Tepat Waktu' || item.status === 'Hadir') ? 'bg-success' : 'bg-warning text-dark';
+                let colorMasuk = (item.status_masuk === 'Tepat Waktu') ? 'bg-success' : (item.status_masuk !== '-' ? 'bg-warning text-dark' : 'bg-secondary');
+                let colorPulang = (item.status_pulang === 'Tepat Waktu') ? 'bg-success' : (item.status_pulang !== '-' ? 'bg-danger' : 'bg-secondary');
+
                 tbody.innerHTML += `
                     <tr>
                         <td><strong>${item.hari}</strong></td>
-                        <td class="text-center">${item.jam}</td>
-                        <td class="text-center"><span class="badge ${badgeColor}">${item.status}</span></td>
-                        <td class="text-center text-muted">${item.lat}</td>
-                        <td class="text-center text-muted">${item.lng}</td>
+                        <td class="text-center">${item.jam_masuk}</td>
+                        <td class="text-center"><span class="badge ${colorMasuk}">${item.status_masuk}</span></td>
+                        <td class="text-center">${item.jam_pulang}</td>
+                        <td class="text-center"><span class="badge ${colorPulang}">${item.status_pulang}</span></td>
                     </tr>
                 `;
             });
@@ -529,32 +650,25 @@
         myModal.show();
     }
 
-    // Penanganan Buka Modal Popup Edit
     function bukaModalEdit(id, nama, nip, jabatan) {
         document.getElementById('edit-nama').value = nama;
         document.getElementById('edit-nip').value = (nip && nip !== 'null') ? nip : '';
         document.getElementById('edit-jabatan').value = jabatan;
         
-        // Atur action form update secara dinamis
         document.getElementById('form-edit-pegawai').action = '/admin/pegawai/' + id + '/update';
         
-        // Panggil modal Bootstrap secara manual (bukan local alert browser)
         var myModal = new bootstrap.Modal(document.getElementById('modalEditAkun'));
         myModal.show();
     }
 
-    // Penanganan Buka Modal Popup Hapus Peringatan Real
     function konfirmasiHapus(id, nama) {
         document.getElementById('hapus-nama-target').innerText = nama;
-        
-        // Atur action form destroy secara dinamis
         document.getElementById('form-hapus-pegawai').action = '/admin/pegawai/' + id + '/delete';
         
         var myModal = new bootstrap.Modal(document.getElementById('modalKonfirmasiHapus'));
         myModal.show();
     }
 
-    // Jalur Pindah Tab Menu SPA Tanpa Reload
     function switchPage(pageId, element) {
         document.querySelectorAll('.page-content').forEach(page => page.classList.remove('active'));
         document.querySelectorAll('.nav-item-box, .sidebar-item').forEach(item => item.classList.remove('active'));

@@ -20,6 +20,7 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->group(function () {
     Route::post('/pegawai/store', [AdminController::class, 'store'])->name('admin.pegawai.store');
     Route::post('/pegawai/{id}/update', [AdminController::class, 'update'])->name('admin.pegawai.update');
     Route::delete('/pegawai/{id}/delete', [AdminController::class, 'destroy'])->name('admin.pegawai.destroy');
+    Route::post('/update-lokasi-kantor', [AdminController::class, 'updateLokasiKantor'])->name('admin.updateLokasi');
 });
 
 // Rute khusus Pegawai
