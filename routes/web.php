@@ -21,10 +21,16 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->group(function () {
     Route::post('/pegawai/{id}/update', [AdminController::class, 'update'])->name('admin.pegawai.update');
     Route::delete('/pegawai/{id}/delete', [AdminController::class, 'destroy'])->name('admin.pegawai.destroy');
     Route::post('/update-lokasi-kantor', [AdminController::class, 'updateLokasiKantor'])->name('admin.updateLokasi');
+    Route::post('/update-jam-kerja', [AdminController::class, 'updateJamKerja'])->name('admin.updateJamKerja');
+    Route::post('/izin/{id}/setujui', [AdminController::class, 'setujuiIzin'])->name('admin.izin.setujui');
+    Route::post('/izin/{id}/tolak', [AdminController::class, 'tolakIzin'])->name('admin.izin.tolak');
+    Route::post('/izin/manual', [AdminController::class, 'tambahIzinManual'])->name('admin.izin.manual');
+    Route::post('/absen/{id}/update', [AdminController::class, 'updateAbsenManual'])->name('admin.absen.update');
 });
 
 // Rute khusus Pegawai
 Route::middleware(['auth', 'pegawai'])->prefix('pegawai')->group(function () {
     Route::get('/dashboard', [PegawaiController::class, 'index']);
     Route::post('/absen', [PegawaiController::class, 'store']);
+    Route::post('/izin/ajukan', [PegawaiController::class, 'ajukanIzin'])->name('pegawai.izin.ajukan');
 });

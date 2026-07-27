@@ -7,6 +7,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Hash;
+use App\Models\PengajuanIzin;
 
 class AdminController extends Controller
 {
@@ -19,12 +20,17 @@ class AdminController extends Controller
         $sekarang = Carbon::now('Asia/Jakarta');
         $hariIni = Carbon::today('Asia/Jakarta');
 
+        // 1. Ambil Pengaturan Lokasi & Jam Kerja Kantor dari Database
         $kantorLat = DB::table('settings')->where('key', 'kantor_latitude')->value('value') ?? '-1.0825000';
         $kantorLng = DB::table('settings')->where('key', 'kantor_longitude')->value('value') ?? '100.8250000';
         $kantorRadius = DB::table('settings')->where('key', 'kantor_radius_meter')->value('value') ?? '50';
+        
+        $jamMasuk = DB::table('settings')->where('key', 'jam_masuk_resmi')->value('value') ?? '07:30';
+        $jamPulang = DB::table('settings')->where('key', 'jam_pulang_resmi')->value('value') ?? '16:00';
 
         $totalPegawai = DB::table('users')->where('role', 'pegawai')->count();
 
+        // 2. Data Absensi Hari Ini
         $absenHariIni = DB::table('absensi')
             ->whereDate('tanggal', $hariIni)
             ->get();
@@ -32,17 +38,28 @@ class AdminController extends Controller
         $hadir = $absenHariIni->where('status_masuk', 'Tepat Waktu')->count();
         $terlambat = $absenHariIni->whereIn('status_masuk', ['TL 1', 'TL 2', 'TL 3', 'TL 4'])->count();
         
-        if ($sekarang->format('H:i') < '07:30') {
+        // TAMBAHAN: Hitung Izin dan DL HARI INI
+        $izinDanDlHariIni = PengajuanIzin::where('status', 'approved')
+            ->whereDate('tanggal_mulai', '<=', $hariIni)
+            ->whereDate('tanggal_selesai', '>=', $hariIni)
+            ->get();
+
+        $izinHariIni = $izinDanDlHariIni->whereIn('tipe_pengajuan', ['sakit', 'cuti', 'izin_pribadi'])->count();
+        $dlHariIni = $izinDanDlHariIni->where('tipe_pengajuan', 'dinas_luar')->count();
+
+        if ($sekarang->format('H:i') < $jamMasuk) {
             $belumAbsen = 0;
         } else {
-            $belumAbsen = $totalPegawai - $absenHariIni->count();
+            // Pengurangan Alpa otomatis jika hari ini ada yang Izin/DL
+            $belumAbsen = $totalPegawai - $absenHariIni->count() - $izinHariIni - $dlHariIni;
             if ($belumAbsen < 0) $belumAbsen = 0;
         }
 
+        // 3. Rekapitulasi Daftar Pegawai (Bulanan)
         $daftarPegawai = DB::table('users')
             ->where('role', 'pegawai')
             ->get()
-            ->map(function($pegawai) use ($tahun, $bulan, $bulanDipilih, $sekarang, $hariIni) {
+            ->map(function($pegawai) use ($tahun, $bulan, $bulanDipilih, $sekarang, $hariIni, $jamMasuk) {
                 $absenBulanIni = DB::table('absensi')
                     ->where('user_id', $pegawai->id)
                     ->whereYear('tanggal', $tahun)
@@ -62,7 +79,7 @@ class AdminController extends Controller
                     $tanggalMulaiHitung = ($tanggalDibuat->format('Y-m') === $bulanDipilih) ? $tanggalDibuat->copy() : $awalBulan->copy();
                     
                     if ($hariIni->format('Y-m') === $bulanDipilih) {
-                        $tanggalAkhirHitung = ($sekarang->format('H:i') < '07:30') ? $hariIni->copy()->subDay() : $hariIni->copy();
+                        $tanggalAkhirHitung = ($sekarang->format('H:i') < $jamMasuk) ? $hariIni->copy()->subDay() : $hariIni->copy();
                     } else {
                         $tanggalAkhirHitung = $akhirBulan->copy();
                     }
@@ -78,15 +95,43 @@ class AdminController extends Controller
                     }
                 }
 
-                $tanpaKeterangan = $totalHariKerjaPegawai - $absenBulanIni->count();
+                $approvedIzins = PengajuanIzin::where('user_id', $pegawai->id)
+                    ->where('status', 'approved')
+                    ->get();
+
+                $totalIzin = 0;
+                $totalDL = 0;
+
+                foreach ($approvedIzins as $izin) {
+                    $start = Carbon::parse($izin->tanggal_mulai);
+                    $end = Carbon::parse($izin->tanggal_selesai);
+                    
+                    for ($d = $start->copy(); $d->lte($end); $d->addDay()) {
+                        if ($d->format('Y-m') === $bulanDipilih && $d->isWeekday()) {
+                            if (isset($tanggalMulaiHitung) && isset($tanggalAkhirHitung) && $d->between($tanggalMulaiHitung, $tanggalAkhirHitung)) {
+                                if ($izin->tipe_pengajuan == 'dinas_luar') {
+                                    $totalDL++;
+                                } else {
+                                    $totalIzin++;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                $tanpaKeterangan = $totalHariKerjaPegawai - $absenBulanIni->count() - $totalIzin - $totalDL;
+                
+                $pegawai->count_izin = $totalIzin;
+                $pegawai->count_dl = $totalDL;
                 $pegawai->count_alpa = ($tanpaKeterangan < 0) ? 0 : $tanpaKeterangan;
 
                 $pegawai->riwayat_json = $absenBulanIni->map(function($a) {
                     return [
+                        'id' => $a->id, // TAMBAHAN PENTING UNTUK FITUR EDIT
                         'hari' => Carbon::parse($a->tanggal)->translatedFormat('l, d F Y'),
-                        'jam_masuk' => $a->jam_masuk ? date('H:i', strtotime($a->jam_masuk)) . ' WIB' : '-',
+                        'jam_masuk' => $a->jam_masuk ? date('H:i:s', strtotime($a->jam_masuk)) : '',
                         'status_masuk' => $a->status_masuk ?? '-',
-                        'jam_pulang' => $a->jam_pulang ? date('H:i', strtotime($a->jam_pulang)) . ' WIB' : '-',
+                        'jam_pulang' => $a->jam_pulang ? date('H:i:s', strtotime($a->jam_pulang)) : '',
                         'status_pulang' => $a->status_pulang ?? '-',
                         'lat' => $a->latitude ?? '-',
                         'lng' => $a->longitude ?? '-'
@@ -96,16 +141,27 @@ class AdminController extends Controller
                 return $pegawai;
             });
 
+        // 4. Ambil Daftar Pengajuan yang Masih Pending
+        $pengajuanPending = PengajuanIzin::with('user')
+            ->where('status', 'pending')
+            ->orderBy('created_at', 'asc')
+            ->get();
+
         return view('admin.dashboard', compact(
             'totalPegawai', 
             'hadir', 
             'terlambat', 
+            'izinHariIni', // Passing variabel baru
+            'dlHariIni',   // Passing variabel baru
             'belumAbsen', 
             'bulanDipilih', 
             'daftarPegawai',
             'kantorLat',
             'kantorLng',
-            'kantorRadius'
+            'kantorRadius',
+            'jamMasuk',
+            'jamPulang',
+            'pengajuanPending'
         ));
     }
 
@@ -164,21 +220,20 @@ class AdminController extends Controller
             ], 400);
         }
 
-        // Eksekusi Update ke Database
-        DB::table('settings')->where('key', 'kantor_latitude')->update([
-            'value' => (string)$lat,
-            'updated_at' => Carbon::now('Asia/Jakarta')
-        ]);
+        DB::table('settings')->updateOrInsert(
+            ['key' => 'kantor_latitude'],
+            ['value' => (string)$lat, 'updated_at' => Carbon::now('Asia/Jakarta')]
+        );
 
-        DB::table('settings')->where('key', 'kantor_longitude')->update([
-            'value' => (string)$lng,
-            'updated_at' => Carbon::now('Asia/Jakarta')
-        ]);
+        DB::table('settings')->updateOrInsert(
+            ['key' => 'kantor_longitude'],
+            ['value' => (string)$lng, 'updated_at' => Carbon::now('Asia/Jakarta')]
+        );
 
-        DB::table('settings')->where('key', 'kantor_radius_meter')->update([
-            'value' => (string)$radius,
-            'updated_at' => Carbon::now('Asia/Jakarta')
-        ]);
+        DB::table('settings')->updateOrInsert(
+            ['key' => 'kantor_radius_meter'],
+            ['value' => (string)$radius, 'updated_at' => Carbon::now('Asia/Jakarta')]
+        );
 
         return response()->json([
             'success' => true,
@@ -186,11 +241,101 @@ class AdminController extends Controller
         ]);
     }
 
+    public function updateJamKerja(Request $request)
+    {
+        $request->validate([
+            'jam_masuk' => 'required',
+            'jam_pulang' => 'required',
+        ]);
+
+        DB::table('settings')->updateOrInsert(
+            ['key' => 'jam_masuk_resmi'],
+            ['value' => $request->jam_masuk, 'updated_at' => Carbon::now('Asia/Jakarta')]
+        );
+
+        DB::table('settings')->updateOrInsert(
+            ['key' => 'jam_pulang_resmi'],
+            ['value' => $request->jam_pulang, 'updated_at' => Carbon::now('Asia/Jakarta')]
+        );
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Jam kerja resmi berhasil diperbarui!'
+        ]);
+    }
+
     public function destroy($id)
     {
         DB::table('absensi')->where('user_id', $id)->delete();
         DB::table('users')->where('id', $id)->delete();
+        PengajuanIzin::where('user_id', $id)->delete();
 
         return redirect()->route('admin.dashboard')->with('success', 'Akun pegawai dan seluruh riwayat absensinya telah dihapus permanen!');
+    }
+
+    public function setujuiIzin($id)
+    {
+        $pengajuan = PengajuanIzin::findOrFail($id);
+        $pengajuan->update(['status' => 'approved']);
+        
+        return redirect()->route('admin.dashboard')->with('success', 'Pengajuan Izin/DL berhasil DISETUJUI.');
+    }
+
+    public function tolakIzin(Request $request, $id)
+    {
+        $request->validate(['catatan_admin' => 'required|string']);
+        
+        $pengajuan = PengajuanIzin::findOrFail($id);
+        $pengajuan->update([
+            'status' => 'rejected',
+            'catatan_admin' => $request->catatan_admin
+        ]);
+        
+        return redirect()->route('admin.dashboard')->with('success', 'Pengajuan Izin/DL telah DITOLAK.');
+    }
+
+    public function tambahIzinManual(Request $request)
+    {
+        $request->validate([
+            'user_id' => 'required',
+            'tipe_pengajuan' => 'required|in:sakit,cuti,izin_pribadi,dinas_luar',
+            'tanggal_mulai' => 'required|date',
+            'tanggal_selesai' => 'required|date|after_or_equal:tanggal_mulai',
+            'alasan' => 'required|string',
+        ]);
+
+        PengajuanIzin::create([
+            'user_id' => $request->user_id,
+            'tipe_pengajuan' => $request->tipe_pengajuan,
+            'tanggal_mulai' => $request->tanggal_mulai,
+            'tanggal_selesai' => $request->tanggal_selesai,
+            'alasan' => $request->alasan . ' (Diinput Langsung Oleh Admin)',
+            'status' => 'approved'
+        ]);
+
+        return redirect()->route('admin.dashboard')->with('success', 'Status Izin/DL manual berhasil ditambahkan ke rekap pegawai!');
+    }
+
+    // ====================================================================
+    // TAMBAHAN: FUNGSI UNTUK MENGEDIT STATUS ABSEN HARIAN MANUAL
+    // ====================================================================
+    public function updateAbsenManual(Request $request, $id)
+    {
+        $request->validate([
+            'jam_masuk' => 'nullable',
+            'status_masuk' => 'required|string',
+            'jam_pulang' => 'nullable',
+            'status_pulang' => 'required|string',
+        ]);
+
+        DB::table('absensi')->where('id', $id)->update([
+            'jam_masuk' => $request->jam_masuk ?: null,
+            'status_masuk' => $request->status_masuk,
+            'jam_pulang' => $request->jam_pulang ?: null,
+            'status_pulang' => $request->status_pulang,
+            'updated_at' => Carbon::now('Asia/Jakarta'),
+        ]);
+
+        return redirect()->route('admin.dashboard')->with('success', 'Data status absensi harian berhasil dikoreksi!');
     }
 }

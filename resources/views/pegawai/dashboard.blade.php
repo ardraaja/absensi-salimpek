@@ -6,6 +6,8 @@
     <title>Dashboard Pegawai - Wali Nagari Salimpek</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <!-- SweetAlert2 CSS -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css">
     <style>
         body { padding-bottom: 80px; padding-top: 0; }
         .sidebar-left { display: none !important; } 
@@ -57,14 +59,14 @@
         .badge-num {
             background: rgba(255, 255, 255, 0.2);
             font-weight: bold;
-            padding: 4px 16px;
+            padding: 4px 12px;
             border-radius: 50rem;
             display: inline-block;
-            font-size: 14px;
-            min-width: 48px;
+            font-size: 13px;
+            min-width: 40px;
         }
         .label-status {
-            font-size: 11px;
+            font-size: 10px;
             opacity: 0.85;
             display: block;
             margin-top: 4px;
@@ -185,10 +187,15 @@
         <h4 class="fw-bold mb-0">{{ Auth::user()->name }} ({{ Auth::user()->status_kerja }})</h4>
         <p class="mb-2 opacity-90">{{ Auth::user()->jabatan }}</p>
         
-        <div class="mb-2 small opacity-90">
+        <div class="mb-1 small opacity-90">
             <i class="bi bi-calendar3 me-1"></i> <span id="realtime-date">{{ \Carbon\Carbon::now('Asia/Jakarta')->translatedFormat('l, d F Y') }}</span>
             <span class="mx-1">|</span>
             <i class="bi bi-clock me-1"></i> <span id="realtime-clock">00:00:00</span> WIB
+        </div>
+
+        <div class="mb-2 small opacity-90">
+            <i class="bi bi-alarm me-1"></i> Jam Kerja Resmi: 
+            <strong>{{ date('H:i', strtotime($jamMasukSetting)) }} - {{ date('H:i', strtotime($jamPulangSetting)) }} WIB</strong>
         </div>
         
         <div class="alert alert-secondary py-2 px-3 d-inline-block small mb-0 shadow-sm">
@@ -237,18 +244,27 @@
                     </div>
                 </div>
 
-                <div class="row text-center g-0">
-                    <div class="col-4">
+                <!-- KOTAK REKAP 5 KOLOM (PEGAWAI) -->
+                <div class="d-flex flex-wrap justify-content-center text-center gap-2">
+                    <div style="flex: 1; min-width: 55px;">
                         <div class="badge-num">{{ $totalHadir }}</div>
-                        <span class="label-status">Hadir (Tepat Waktu)</span>
+                        <span class="label-status">Hadir</span>
                     </div>
-                    <div class="col-4">
+                    <div style="flex: 1; min-width: 55px;">
                         <div class="badge-num">{{ $totalTerlambat }}</div>
-                        <span class="label-status">Terlambat (TL)</span>
+                        <span class="label-status">Telat</span>
                     </div>
-                    <div class="col-4">
+                    <div style="flex: 1; min-width: 55px;">
+                        <div class="badge-num">{{ $totalIzin }}</div>
+                        <span class="label-status">Izin/Sakit</span>
+                    </div>
+                    <div style="flex: 1; min-width: 55px;">
+                        <div class="badge-num">{{ $totalDL }}</div>
+                        <span class="label-status">Dinas Luar</span>
+                    </div>
+                    <div style="flex: 1; min-width: 55px;">
                         <div class="badge-num">{{ $tanpaKeterangan }}</div>
-                        <span class="label-status">Tanpa Keterangan</span>
+                        <span class="label-status">Alpa</span>
                     </div>
                 </div>
             </div>
@@ -279,12 +295,9 @@
                     @forelse($riwayatAbsen as $absen)
                         <tr>
                             <td><strong>{{ \Carbon\Carbon::parse($absen->tanggal)->translatedFormat('l, d F Y') }}</strong></td>
-                            
-                            <!-- JAM MASUK -->
                             <td class="text-center">
                                 {{ $absen->jam_masuk ? date('H:i', strtotime($absen->jam_masuk)) . ' WIB' : '-' }}
                             </td>
-                            
                             <td class="text-center">
                                 @if($absen->status_masuk == 'Tepat Waktu')
                                     <span class="badge bg-success">Tepat Waktu</span>
@@ -294,11 +307,9 @@
                                     <span class="badge bg-secondary">-</span>
                                 @endif
                             </td>
-
                             <td class="text-center">
                                 {{ $absen->jam_pulang ? date('H:i', strtotime($absen->jam_pulang)) . ' WIB' : '-' }}
                             </td>
-
                             <td class="text-center">
                                 @if($absen->status_pulang == 'Tepat Waktu')
                                     <span class="badge bg-success">Tepat Waktu</span>
@@ -312,6 +323,73 @@
                     @empty
                         <tr>
                             <td colspan="5" class="text-center text-muted py-4">Belum ada riwayat presensi di bulan ini.</td>
+                        </tr>
+                    @endforelse
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="card border-0 shadow-sm p-3 mt-4">
+        <div class="d-flex flex-column flex-sm-row justify-content-between align-items-start align-items-sm-center border-bottom pb-3 mb-3 gap-2">
+            <div>
+                <h5 class="fw-bold mb-0">Pengajuan Izin & Dinas Luar</h5>
+                <span class="text-muted small">Riwayat permohonan Sakit, Cuti, dan DL</span>
+            </div>
+            <button type="button" class="btn btn-sm btn-success fw-bold px-3 shadow-sm" data-bs-toggle="modal" data-bs-target="#modalPengajuanIzin">
+                <i class="bi bi-envelope-plus-fill me-1"></i> Buat Pengajuan
+            </button>
+        </div>
+
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0" style="font-size: 13px;">
+                <thead class="table-light">
+                    <tr>
+                        <th>Tipe Pengajuan</th>
+                        <th>Tanggal Rentang</th>
+                        <th>Alasan Keterangan</th>
+                        <th class="text-center">Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @forelse($riwayatPengajuan ?? [] as $izin)
+                        <tr>
+                            <td>
+                                @if($izin->tipe_pengajuan == 'sakit')
+                                    <span class="badge bg-danger-subtle text-danger border border-danger-subtle">Sakit</span>
+                                @elseif($izin->tipe_pengajuan == 'cuti')
+                                    <span class="badge bg-info-subtle text-info border border-info-subtle">Cuti</span>
+                                @elseif($izin->tipe_pengajuan == 'izin_pribadi')
+                                    <span class="badge bg-warning-subtle text-warning border border-warning-subtle">Izin Pribadi</span>
+                                @else
+                                    <span class="badge bg-primary-subtle text-primary border border-primary-subtle">Dinas Luar</span>
+                                @endif
+                            </td>
+                            <td>
+                                @if($izin->tanggal_mulai == $izin->tanggal_selesai)
+                                    {{ \Carbon\Carbon::parse($izin->tanggal_mulai)->translatedFormat('d M Y') }}
+                                @else
+                                    {{ \Carbon\Carbon::parse($izin->tanggal_mulai)->format('d M') }} s/d {{ \Carbon\Carbon::parse($izin->tanggal_selesai)->translatedFormat('d M Y') }}
+                                @endif
+                            </td>
+                            <td>
+                                <span class="d-inline-block text-truncate" style="max-width: 150px;" title="{{ $izin->alasan }}">
+                                    {{ $izin->alasan }}
+                                </span>
+                            </td>
+                            <td class="text-center">
+                                @if($izin->status == 'pending')
+                                    <span class="badge bg-warning text-dark"><i class="bi bi-hourglass-split"></i> Pending</span>
+                                @elseif($izin->status == 'approved')
+                                    <span class="badge bg-success"><i class="bi bi-check-circle"></i> Disetujui</span>
+                                @else
+                                    <span class="badge bg-danger" title="{{ $izin->catatan_admin }}"><i class="bi bi-x-circle"></i> Ditolak</span>
+                                @endif
+                            </td>
+                        </tr>
+                    @empty
+                        <tr>
+                            <td colspan="4" class="text-center text-muted py-4">Belum ada riwayat pengajuan Izin atau DL.</td>
                         </tr>
                     @endforelse
                 </tbody>
@@ -377,6 +455,68 @@
     </div>
 </div>
 
+<div class="modal fade" id="modalPengajuanIzin" tabindex="-1" aria-hidden="true" style="z-index: 1060;">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title fw-bold" style="font-size: 16px;">
+                    <i class="bi bi-envelope-paper me-2"></i>Form Pengajuan Izin & DL
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form action="{{ route('pegawai.izin.ajukan') }}" method="POST" enctype="multipart/form-data">
+                @csrf
+                <div class="modal-body p-3">
+                    
+                    <div class="alert alert-warning small mb-3 p-2 border-warning" style="font-size: 11px;">
+                        <strong><i class="bi bi-exclamation-triangle-fill"></i> Perhatian:</strong> Pengajuan <strong>Cuti, Izin Pribadi, dan Dinas Luar</strong> wajib dilakukan minimal <strong>H-2</strong>. Jika mendadak (hari H), silakan hubungi langsung Admin / Wali Nagari via WA.
+                    </div>
+
+                    <div class="mb-2">
+                        <label class="form-label small fw-bold">Tipe Pengajuan</label>
+                        <select name="tipe_pengajuan" class="form-select form-select-sm" required>
+                            <option value="" disabled selected>-- Pilih Tipe --</option>
+                            <option value="sakit">Sakit (Bisa Hari-H)</option>
+                            <option value="cuti">Cuti (Minimal H-2)</option>
+                            <option value="izin_pribadi">Izin Kepentingan Pribadi (Minimal H-2)</option>
+                            <option value="dinas_luar">Dinas Luar / DL (Minimal H-2)</option>
+                        </select>
+                    </div>
+
+                    <div class="row g-2 mb-2">
+                        <div class="col-6">
+                            <label class="form-label small fw-bold">Tanggal Mulai</label>
+                            <input type="date" name="tanggal_mulai" class="form-control form-control-sm" required>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label small fw-bold">Tanggal Selesai</label>
+                            <input type="date" name="tanggal_selesai" class="form-control form-control-sm" required>
+                        </div>
+                    </div>
+
+                    <div class="mb-2">
+                        <label class="form-label small fw-bold">Alasan / Keterangan</label>
+                        <textarea name="alasan" class="form-control form-control-sm" rows="2" placeholder="Tuliskan keterangan lengkap..." required></textarea>
+                    </div>
+
+                    <div class="mb-2">
+                        <label class="form-label small fw-bold">File Lampiran <span class="text-muted fw-normal">(Foto/PDF)</span></label>
+                        <input type="file" name="file_bukti" class="form-control form-control-sm" accept=".jpg,.jpeg,.png,.pdf">
+                        <div class="form-text" style="font-size: 10px;">
+                            <span class="text-danger fw-bold">*Wajib</span> untuk pengajuan <strong>Dinas Luar</strong> (Surat Tugas) atau <strong>Sakit</strong> (Surat Dokter). Max 2MB.
+                        </div>
+                    </div>
+
+                </div>
+                <div class="modal-footer bg-light py-2">
+                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Batal</button>
+                    <button type="submit" class="btn btn-success btn-sm fw-bold">Kirim Pengajuan</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
 <div class="nav-bottom d-flex align-items-center border-top">
     <div class="nav-item-box active" onclick="switchPage('utama', this)">
         <i class="bi bi-clock-history fs-4"></i><br>
@@ -406,12 +546,35 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+@if(session('success'))
+<script>
+    Swal.fire({
+        icon: 'success',
+        title: 'Berhasil!',
+        text: "{{ session('success') }}",
+        confirmButtonColor: '#198754'
+    });
+</script>
+@endif
+
+@if(session('error'))
+<script>
+    Swal.fire({
+        icon: 'error',
+        title: 'Gagal Memproses!',
+        text: "{{ session('error') }}",
+        confirmButtonColor: '#dc3545'
+    });
+</script>
+@endif
+
 <script>
     const statusLokasi = document.getElementById('status-lokasi');
 
     function updateClock() {
         const now = new Date();
-        
         const opsiTanggal = { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' };
         const tanggalIndo = now.toLocaleDateString('id-ID', opsiTanggal);
         
@@ -431,58 +594,105 @@
     
     document.querySelectorAll('.btn-absen-trigger').forEach(btn => {
         btn.addEventListener('click', function() {
-            statusLokasi.className = "fw-semibold text-warning";
-            statusLokasi.innerText = "Mencari GPS...";
-            
-            if (navigator.geolocation) {
-                navigator.geolocation.getCurrentPosition(function(position) {
-                    let lat = position.coords.latitude;
-                    let lng = position.coords.longitude;
-                    
-                    statusLokasi.className = "fw-semibold text-info";
-                    statusLokasi.innerText = "Mengirim presensi...";
-                    
-                    fetch('/pegawai/absen', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'X-CSRF-TOKEN': '{{ csrf_token() }}'
-                        },
-                        body: JSON.stringify({ latitude: lat, longitude: lng })
-                    })
-                    .then(response => response.json())
-                    .then(data => {
-                        if (data.success) {
-                            statusLokasi.className = "text-success-light fw-bold";
-                            statusLokasi.innerText = data.message;
-                            
-                            document.querySelectorAll('.btn-absen-trigger').forEach(b => {
-                                b.disabled = true;
-                                b.classList.replace('btn-success', 'btn-secondary');
-                                b.classList.replace('btn-warning', 'btn-secondary');
-                            });
-                            
-                            setTimeout(() => { location.reload(); }, 1200);
-                        } else {
-                            statusLokasi.className = "fw-semibold text-danger";
-                            statusLokasi.innerText = data.message;
-                        }
-                    })
-                    .catch(error => {
-                        statusLokasi.className = "fw-semibold text-danger";
-                        statusLokasi.innerText = "Gagal mengirim data.";
-                    });
-                    
-                }, function(error) {
-                    statusLokasi.className = "fw-semibold text-danger";
-                    statusLokasi.innerText = "GPS error / Izin ditolak!";
-                }, { enableHighAccuracy: true });
+            let isAbsenPulang = {{ (isset($absenHariIni) && $absenHariIni->jam_masuk && !$absenHariIni->jam_pulang) ? 'true' : 'false' }};
+
+            if (isAbsenPulang) {
+                let jamPulangResmi = "{{ date('H:i', strtotime($jamPulangSetting)) }}";
+
+                Swal.fire({
+                    title: 'Konfirmasi Absen Pulang',
+                    html: `Apakah Anda yakin ingin menyelesaikan tugas dan Absen Pulang sekarang?<br><br><span class="badge bg-secondary p-2" style="font-size: 13px;">Jam Pulang Resmi: <strong>${jamPulangResmi} WIB</strong></span>`,
+                    icon: 'warning',
+                    showCancelButton: true,
+                    confirmButtonColor: '#198754',
+                    cancelButtonColor: '#6c757d',
+                    confirmButtonText: 'Ya, Absen Pulang!',
+                    cancelButtonText: 'Batal'
+                }).then((result) => {
+                    if (result.isConfirmed) {
+                        eksekusiKirimPresensi();
+                    }
+                });
             } else {
-                statusLokasi.className = "fw-semibold text-danger";
-                statusLokasi.innerText = "Browser tidak mendukung GPS.";
+                eksekusiKirimPresensi();
             }
         });
     });
+
+    function eksekusiKirimPresensi() {
+        Swal.fire({
+            title: 'Mendapatkan GPS & Memproses...',
+            text: 'Mohon tunggu sebentar',
+            allowOutsideClick: false,
+            didOpen: () => { Swal.showLoading(); }
+        });
+
+        if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(function(position) {
+                let lat = position.coords.latitude;
+                let lng = position.coords.longitude;
+                
+                fetch('/pegawai/absen', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                        'Accept': 'application/json'
+                    },
+                    body: JSON.stringify({ latitude: lat, longitude: lng })
+                })
+                .then(async response => {
+                    const data = await response.json();
+                    if (!response.ok) {
+                        throw new Error(data.message || 'Gagal memproses absensi.');
+                    }
+                    return data;
+                })
+                .then(data => {
+                    if (data.success) {
+                        Swal.fire({
+                            icon: 'success',
+                            title: 'Berhasil!',
+                            text: data.message,
+                            confirmButtonColor: '#198754'
+                        }).then(() => {
+                            location.reload();
+                        });
+                    } else {
+                        Swal.fire({
+                            icon: 'error',
+                            title: 'Gagal Absen',
+                            text: data.message,
+                            confirmButtonColor: '#dc3545'
+                        });
+                    }
+                })
+                .catch(error => {
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Absen Ditolak',
+                        text: error.message,
+                        confirmButtonColor: '#dc3545'
+                    });
+                });
+                
+            }, function(error) {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Gagal Membaca GPS',
+                    text: 'Pastikan fitur Lokasi (GPS) di HP/Browser Anda sudah diaktifkan.',
+                    confirmButtonColor: '#dc3545'
+                });
+            }, { enableHighAccuracy: true });
+        } else {
+            Swal.fire({
+                icon: 'error',
+                title: 'Tidak Didukung',
+                text: 'Browser Anda tidak mendukung Geolocation GPS.',
+                confirmButtonColor: '#dc3545'
+            });
+        }
+    }
 
     function switchPage(pageId, element) {
         document.querySelectorAll('.page-content').forEach(page => page.classList.remove('active'));
