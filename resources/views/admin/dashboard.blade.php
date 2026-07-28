@@ -718,7 +718,7 @@
                                 <div class="col-md-6 mb-2">
                                     <label class="form-label small fw-bold mb-1">Status Kerja</label>
                                     <select name="status_kerja" class="form-select form-select-sm" required>
-                                        <option value="Aktif">Aktif</option>
+                                        <option value="Tetap">Tetap</option>
                                         <option value="Kontrak">Kontrak</option>
                                         <option value="Magang">Magang</option>
                                     </select>
