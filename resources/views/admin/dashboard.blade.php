@@ -134,7 +134,6 @@
         </div>
     </div>
 
-    <!-- KOTAK REKAP 5 KOLOM (DIPERBARUI) -->
     <div class="card rekap-card shadow-sm mb-4">
         <div class="d-flex justify-content-between align-items-start mb-4">
             <div class="d-flex align-items-center">
@@ -175,7 +174,6 @@
         </div>
     </div>
 
-    <!-- DAFTAR PERSETUJUAN IZIN & DL -->
     <div class="card border-0 shadow-sm p-3 mb-4">
         <div class="d-flex justify-content-between align-items-center border-bottom pb-3 mb-3">
             <h5 class="fw-bold mb-0 text-dark">
@@ -233,7 +231,6 @@
                             </td>
                             <td class="text-center">
                                 <div class="d-inline-flex align-items-center gap-1">
-                                    <!-- Tombol Setujui -->
                                     <form action="{{ route('admin.izin.setujui', $pending->id) }}" method="POST" id="form-setujui-{{ $pending->id }}" class="m-0">
                                         @csrf
                                         <button type="button" class="btn btn-sm btn-success px-2 py-1" title="Setujui" onclick="konfirmasiSetujui('{{ $pending->id }}')">
@@ -241,7 +238,6 @@
                                         </button>
                                     </form>
                                     
-                                    <!-- Tombol Tolak -->
                                     <button type="button" class="btn btn-sm btn-danger px-2 py-1" title="Tolak" onclick="bukaModalTolakIzin('{{ $pending->id }}')">
                                         <i class="bi bi-x-lg"></i>
                                     </button>
@@ -258,15 +254,20 @@
         </div>
     </div>
 
-    <!-- REKAPITULASI BULANAN PEGAWAI -->
+    <!-- REKAPITULASI BULANAN PEGAWAI (DENGAN TOMBOL CETAK PDF) -->
     <div class="card border-0 shadow-sm p-3">
         <div class="d-flex flex-column flex-sm-row justify-content-between align-items-start align-items-sm-center border-bottom pb-3 mb-3 gap-2">
             <h5 class="fw-bold mb-0">Rekapitulasi Kinerja Bulanan</h5>
             
-            <form action="/admin/dashboard" method="GET" id="form-bulan" class="input-group" style="max-width: 250px;">
-                <span class="input-group-text bg-white small" style="font-size: 13px;">Bulan</span>
-                <input type="month" name="bulan" class="form-control form-control-sm" value="{{ $bulanDipilih ?? date('Y-m') }}" onchange="document.getElementById('form-bulan').submit();">
-            </form>
+            <div class="d-flex gap-2">
+                <form action="/admin/dashboard" method="GET" id="form-bulan" class="input-group" style="max-width: 200px;">
+                    <span class="input-group-text bg-white small" style="font-size: 13px;">Bulan</span>
+                    <input type="month" name="bulan" class="form-control form-control-sm" value="{{ $bulanDipilih ?? date('Y-m') }}" onchange="document.getElementById('form-bulan').submit();">
+                </form>
+                <a href="{{ route('admin.laporan.cetak', ['bulan' => $bulanDipilih ?? date('Y-m')]) }}" target="_blank" class="btn btn-primary btn-sm d-flex align-items-center shadow-sm">
+                    <i class="bi bi-printer-fill me-1"></i> Cetak PDF
+                </a>
+            </div>
         </div>
 
         <div class="table-responsive">
@@ -360,6 +361,15 @@
                         <div>
                             <i class="bi bi-clock-history text-warning me-3 fs-5"></i>
                             <span class="fw-semibold text-dark">Atur Jam Kerja Resmi</span>
+                        </div>
+                        <i class="bi bi-chevron-right text-muted"></i>
+                    </button>
+
+                    <!-- TOMBOL ATUR PENANDATANGAN LAPORAN -->
+                    <button type="button" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center py-3 border-0 rounded mb-2 bg-light text-decoration-none" data-bs-toggle="modal" data-bs-target="#modalSettingTTD">
+                        <div>
+                            <i class="bi bi-pen-fill text-info me-3 fs-5"></i>
+                            <span class="fw-semibold text-dark">Atur Penandatangan Laporan</span>
                         </div>
                         <i class="bi bi-chevron-right text-muted"></i>
                     </button>
@@ -528,6 +538,44 @@
                     <i class="bi bi-save me-1"></i> Simpan Jam Kerja
                 </button>
             </div>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL SETTING PENANDATANGAN LAPORAN -->
+<div class="modal fade" id="modalSettingTTD" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header bg-info text-dark">
+                <h5 class="modal-title fw-bold">
+                    <i class="bi bi-pen-fill me-2"></i>Atur Penandatangan
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form action="{{ route('admin.laporan.penandatangan') }}" method="POST">
+                @csrf
+                <div class="modal-body p-3">
+                    <p class="text-muted small mb-3">Identitas ini akan otomatis dicetak pada bagian bawah halaman Laporan PDF bulanan.</p>
+                    
+                    @php
+                        $namaWaliSetting = DB::table('settings')->where('key', 'nama_wali_nagari')->value('value') ?? '';
+                        $nipWaliSetting = DB::table('settings')->where('key', 'nip_wali_nagari')->value('value') ?? '';
+                    @endphp
+
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold">Nama Wali Nagari</label>
+                        <input type="text" name="nama_wali" class="form-control form-control-sm" value="{{ $namaWaliSetting }}" placeholder="Contoh: ZULFAHRI, S.Pd" required>
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label small fw-bold">NIP (Opsional)</label>
+                        <input type="text" name="nip_wali" class="form-control form-control-sm" value="{{ $nipWaliSetting }}" placeholder="Kosongkan jika tidak ada">
+                    </div>
+                </div>
+                <div class="modal-footer bg-light">
+                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Batal</button>
+                    <button type="submit" class="btn btn-info btn-sm fw-bold">Simpan Identitas</button>
+                </div>
+            </form>
         </div>
     </div>
 </div>
@@ -852,23 +900,6 @@
         if (circle) circle.setLatLng([formattedLat, formattedLng]);
     }
 
-    function konfirmasiSetujui(id) {
-        Swal.fire({
-            title: 'Setujui Pengajuan?',
-            text: "Status absensi pegawai akan otomatis disesuaikan dengan pengajuan ini.",
-            icon: 'question',
-            showCancelButton: true,
-            confirmButtonColor: '#198754',
-            cancelButtonColor: '#6c757d',
-            confirmButtonText: 'Ya, Setujui!',
-            cancelButtonText: 'Batal'
-        }).then((result) => {
-            if (result.isConfirmed) {
-                document.getElementById('form-setujui-' + id).submit();
-            }
-        });
-    }
-
     function simpanLokasiKantor() {
         let lat = document.getElementById('input-lat').value;
         let lng = document.getElementById('input-lng').value;
@@ -914,6 +945,23 @@
         }).catch(error => { Swal.fire({ icon: 'error', title: 'Terjadi Kesalahan', text: error.message, confirmButtonColor: '#dc3545' }); });
     }
 
+    function konfirmasiSetujui(id) {
+        Swal.fire({
+            title: 'Setujui Pengajuan?',
+            text: "Status absensi pegawai akan otomatis disesuaikan dengan pengajuan ini.",
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonColor: '#198754',
+            cancelButtonColor: '#6c757d',
+            confirmButtonText: 'Ya, Setujui!',
+            cancelButtonText: 'Batal'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                document.getElementById('form-setujui-' + id).submit();
+            }
+        });
+    }
+
     function bukaModalDetail(nama, jabatan, nip, riwayatJson) {
         document.getElementById('detail-title-nama').innerText = "Jurnal Absensi: " + nama;
         document.getElementById('detail-info-nama').innerText = nama;
@@ -934,11 +982,9 @@
                     ? `<a href="https://maps.google.com/?q=${item.lat},${item.lng}" target="_blank" class="btn btn-sm btn-outline-info py-0 px-2" style="font-size: 11px;"><i class="bi bi-geo-alt"></i> Cek</a>`
                     : '<span class="text-muted">-</span>';
 
-                // Tampilan Jam (jika ada isinya tambahkan tulisan WIB untuk frontend)
                 let jamMasukTampil = item.jam_masuk ? item.jam_masuk + ' WIB' : '-';
                 let jamPulangTampil = item.jam_pulang ? item.jam_pulang + ' WIB' : '-';
 
-                // Tombol Edit yang memanggil fungsi JS baru
                 let btnEdit = `<button type="button" class="btn btn-sm btn-primary py-0 px-2" style="font-size: 11px;" onclick="bukaModalEditAbsen('${item.id}', '${item.hari}', '${item.jam_masuk}', '${item.status_masuk}', '${item.jam_pulang}', '${item.status_pulang}')" title="Koreksi Absen"><i class="bi bi-pencil"></i></button>`;
 
                 tbody.innerHTML += `
@@ -959,24 +1005,16 @@
         myModal.show();
     }
 
-    // ====================================================================
-    // FUNGSI UNTUK MEMBUKA POP-UP EDIT ABSEN MANUAL OLEH ADMIN
-    // ====================================================================
     function bukaModalEditAbsen(id, hari, jamMasuk, statusMasuk, jamPulang, statusPulang) {
-        // Arahkan form ke rute update absen
         document.getElementById('form-edit-absen').action = '/admin/absen/' + id + '/update';
-        
-        // Tampilkan hari/tanggal di modal
         document.getElementById('edit-absen-tanggal').innerText = hari;
 
-        // Isi form dengan data saat ini (format jam HH:MM:SS)
         document.getElementById('edit-absen-jam-masuk').value = (jamMasuk && jamMasuk !== '-') ? jamMasuk : '';
         document.getElementById('edit-absen-jam-pulang').value = (jamPulang && jamPulang !== '-') ? jamPulang : '';
         
         document.getElementById('edit-absen-status-masuk').value = statusMasuk;
         document.getElementById('edit-absen-status-pulang').value = statusPulang;
 
-        // Munculkan Modal Edit (ditumpuk di atas modal Log Absen)
         var modalEdit = new bootstrap.Modal(document.getElementById('modalEditAbsenHarian'));
         modalEdit.show();
     }

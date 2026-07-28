@@ -127,7 +127,7 @@ class AdminController extends Controller
 
                 $pegawai->riwayat_json = $absenBulanIni->map(function($a) {
                     return [
-                        'id' => $a->id, // TAMBAHAN PENTING UNTUK FITUR EDIT
+                        'id' => $a->id,
                         'hari' => Carbon::parse($a->tanggal)->translatedFormat('l, d F Y'),
                         'jam_masuk' => $a->jam_masuk ? date('H:i:s', strtotime($a->jam_masuk)) : '',
                         'status_masuk' => $a->status_masuk ?? '-',
@@ -151,8 +151,8 @@ class AdminController extends Controller
             'totalPegawai', 
             'hadir', 
             'terlambat', 
-            'izinHariIni', // Passing variabel baru
-            'dlHariIni',   // Passing variabel baru
+            'izinHariIni', 
+            'dlHariIni', 
             'belumAbsen', 
             'bulanDipilih', 
             'daftarPegawai',
@@ -316,9 +316,6 @@ class AdminController extends Controller
         return redirect()->route('admin.dashboard')->with('success', 'Status Izin/DL manual berhasil ditambahkan ke rekap pegawai!');
     }
 
-    // ====================================================================
-    // TAMBAHAN: FUNGSI UNTUK MENGEDIT STATUS ABSEN HARIAN MANUAL
-    // ====================================================================
     public function updateAbsenManual(Request $request, $id)
     {
         $request->validate([
@@ -337,5 +334,152 @@ class AdminController extends Controller
         ]);
 
         return redirect()->route('admin.dashboard')->with('success', 'Data status absensi harian berhasil dikoreksi!');
+    }
+
+    // ====================================================================
+    // FUNGSI UNTUK GENERATE LAPORAN LENGKAP & DINAMIS
+    // ====================================================================
+    public function cetakLaporan(Request $request)
+    {
+        $bulanDipilih = $request->get('bulan', date('Y-m'));
+        $tahun = explode('-', $bulanDipilih)[0];
+        $bulan = explode('-', $bulanDipilih)[1];
+
+        $hariIni = Carbon::today('Asia/Jakarta');
+
+        // Mengambil data penandatangan dari tabel settings
+        $namaWali = DB::table('settings')->where('key', 'nama_wali_nagari')->value('value') ?? 'NAMA WALI NAGARI';
+        $nipWali = DB::table('settings')->where('key', 'nip_wali_nagari')->value('value') ?? '-';
+
+        $daftarPegawai = DB::table('users')
+            ->where('role', 'pegawai')
+            ->orderBy('name', 'asc')
+            ->get();
+
+        foreach ($daftarPegawai as $pegawai) {
+            $absenBulanIni = DB::table('absensi')
+                ->where('user_id', $pegawai->id)
+                ->whereYear('tanggal', $tahun)
+                ->whereMonth('tanggal', $bulan)
+                ->get()
+                ->keyBy('tanggal');
+
+            $approvedIzins = PengajuanIzin::where('user_id', $pegawai->id)->where('status', 'approved')->get();
+
+            $daysInMonth = Carbon::createFromDate($tahun, $bulan, 1)->daysInMonth;
+            $detailHarian = [];
+            
+            $hadir = 0; $telat = 0; $izin = 0; $dl = 0; $alpa = 0;
+
+            // 1. Tentukan tanggal mulai (Mulai tgl 1 ATAU sejak tanggal akun pegawai dibuat)
+            $tanggalDibuat = Carbon::parse($pegawai->created_at)->setTimezone('Asia/Jakarta')->startOfDay();
+            $startDay = 1;
+            if ($tanggalDibuat->format('Y-m') === $bulanDipilih) {
+                $startDay = $tanggalDibuat->day; // Jika dibuat bulan ini, mulai dari tgl dibuat
+            } elseif ($tanggalDibuat->format('Y-m') > $bulanDipilih) {
+                // Jika akun dibuat SETELAH bulan laporan yang dipilih, lewati saja
+                $startDay = 1;
+                $daysInMonth = 0; 
+            }
+
+            // 2. Tentukan batas akhir (Sampai akhir bulan ATAU mentok sampai hari ini saja)
+            $endDay = $daysInMonth;
+            if ($hariIni->format('Y-m') === $bulanDipilih) {
+                $endDay = $hariIni->day; 
+            }
+
+            for ($i = $startDay; $i <= $endDay; $i++) {
+                $tanggalStr = sprintf('%04d-%02d-%02d', $tahun, $bulan, $i);
+                $tanggalObj = Carbon::parse($tanggalStr);
+                
+                // 3. SKIP HARI LIBUR / WEEKEND (Sabtu & Minggu tidak masuk laporan cetak)
+                if ($tanggalObj->isWeekend()) {
+                    continue; 
+                }
+
+                if (isset($absenBulanIni[$tanggalStr])) {
+                    $a = $absenBulanIni[$tanggalStr];
+                    $hadir++;
+                    if (in_array($a->status_masuk, ['TL 1', 'TL 2', 'TL 3', 'TL 4'])) $telat++;
+
+                    $detailHarian[] = [
+                        'tanggal' => $tanggalObj->translatedFormat('d M Y'),
+                        'masuk' => $a->jam_masuk ? date('H:i', strtotime($a->jam_masuk)) : '-',
+                        'status_masuk' => $a->status_masuk ?? '-',
+                        'pulang' => $a->jam_pulang ? date('H:i', strtotime($a->jam_pulang)) : '-',
+                        'status_pulang' => $a->status_pulang ?? '-',
+                        'keterangan' => 'Hadir'
+                    ];
+                } else {
+                    $statusIzin = null;
+                    foreach ($approvedIzins as $iz) {
+                        if ($tanggalObj->between(Carbon::parse($iz->tanggal_mulai)->startOfDay(), Carbon::parse($iz->tanggal_selesai)->endOfDay())) {
+                            $statusIzin = $iz->tipe_pengajuan; break;
+                        }
+                    }
+
+                    if ($statusIzin) {
+                        $label = 'Izin';
+                        if($statusIzin == 'sakit') $label = 'Sakit';
+                        elseif($statusIzin == 'cuti') $label = 'Cuti';
+                        elseif($statusIzin == 'dinas_luar') $label = 'Dinas Luar';
+
+                        if ($statusIzin == 'dinas_luar') $dl++; else $izin++;
+
+                        $detailHarian[] = [
+                            'tanggal' => $tanggalObj->translatedFormat('d M Y'),
+                            'masuk' => '-', 'status_masuk' => '-', 'pulang' => '-', 'status_pulang' => '-',
+                            'keterangan' => $label
+                        ];
+                    } else {
+                        // Jika hari berlalu dan tidak ada absen & bukan izin = Alpa
+                        if ($tanggalObj->isPast() && !$tanggalObj->isToday()) {
+                            $alpa++;
+                            $detailHarian[] = [
+                                'tanggal' => $tanggalObj->translatedFormat('d M Y'),
+                                'masuk' => '-', 'status_masuk' => '-', 'pulang' => '-', 'status_pulang' => '-',
+                                'keterangan' => 'Tanpa Keterangan (Alpa)'
+                            ];
+                        } else {
+                            // Untuk kasus jika belum absen di "Hari Ini"
+                            $detailHarian[] = [
+                                'tanggal' => $tanggalObj->translatedFormat('d M Y'),
+                                'masuk' => '-', 'status_masuk' => '-', 'pulang' => '-', 'status_pulang' => '-',
+                                'keterangan' => '-'
+                            ];
+                        }
+                    }
+                }
+            }
+
+            $pegawai->rekap_harian = $detailHarian;
+            $pegawai->total_hadir = $hadir;
+            $pegawai->total_telat = $telat;
+            $pegawai->total_izin = $izin;
+            $pegawai->total_dl = $dl;
+            $pegawai->total_alpa = $alpa;
+        }
+
+        return view('admin.cetak-laporan', compact('daftarPegawai', 'bulanDipilih', 'tahun', 'bulan', 'namaWali', 'nipWali'));
+    }
+
+    public function updatePenandatangan(Request $request)
+    {
+        $request->validate([
+            'nama_wali' => 'required|string|max:255',
+            'nip_wali' => 'nullable|string|max:255',
+        ]);
+
+        DB::table('settings')->updateOrInsert(
+            ['key' => 'nama_wali_nagari'],
+            ['value' => $request->nama_wali, 'updated_at' => Carbon::now('Asia/Jakarta')]
+        );
+
+        DB::table('settings')->updateOrInsert(
+            ['key' => 'nip_wali_nagari'],
+            ['value' => $request->nip_wali ?: '-', 'updated_at' => Carbon::now('Asia/Jakarta')]
+        );
+
+        return redirect()->route('admin.dashboard')->with('success', 'Identitas penandatangan laporan berhasil diperbarui!');
     }
 }
